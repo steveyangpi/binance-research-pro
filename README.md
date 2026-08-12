@@ -1,0 +1,95 @@
+# Binance Analysis MCP Server
+
+[简体中文](README.zh-CN.md)
+
+A Binance Spot and USD-M Futures market-analysis MCP server. Live analysis uses public endpoints only, requires no API key, and has no order, transfer, or account-reading capability. Historical files can be imported into a local DuckDB/Parquet warehouse.
+
+> Market data and technical indicators are for analysis only and are not investment advice. Digital-asset prices can be highly volatile; verify the data, rules, and risks independently.
+
+## Features
+
+| MCP tool                   | Description                                                         |
+| -------------------------- | ------------------------------------------------------------------- |
+| `market_overview`          | Get 24-hour statistics for one symbol or the most liquid USDT pairs |
+| `get_candles`              | Get normalized OHLCV candlesticks                                   |
+| `analyze_indicators`       | Calculate SMA, EMA, RSI, MACD, Bollinger Bands, and ATR             |
+| `analyze_trend`            | Summarize single-timeframe trend and momentum state                 |
+| `order_book_snapshot`      | Get order-book depth and calculate spread and notional imbalance    |
+| `exchange_info`            | Get symbol status, precision, order types, and trading filters      |
+| `compare_markets`          | Compare 2–20 Spot symbols using normalized 24-hour data             |
+| `multi_timeframe_analysis` | Analyze trend alignment across 2–5 intervals                        |
+
+### USD-M Futures tools
+
+| MCP tool                      | Description                                                            |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `futures_market_overview`     | Get 24-hour perpetual-contract statistics                              |
+| `futures_mark_price`          | Get mark/index prices, basis, funding rate, and next funding time      |
+| `futures_candles`             | Get normalized USD-M Futures OHLCV candlesticks                        |
+| `futures_order_book_snapshot` | Get Futures depth, spread, and notional imbalance                      |
+| `futures_open_interest`       | Get current contract open interest                                     |
+| `futures_funding_rate`        | Get historical funding rates                                           |
+| `analyze_futures`             | Combine price, basis, funding, open interest, and technical indicators |
+
+### Local data warehouse tools
+
+| MCP tool                  | Description                                               |
+| ------------------------- | --------------------------------------------------------- |
+| `warehouse_import_file`   | Import CSV, ZIP, or Parquet from an allowlisted directory |
+| `warehouse_import_url`    | Download an HTTPS file, optionally verify SHA-256, import |
+| `warehouse_status`        | Show configured paths, limits, and import totals          |
+| `warehouse_list_datasets` | List datasets, symbols, intervals, and time ranges        |
+| `warehouse_list_files`    | List managed Parquet files and import metadata            |
+| `warehouse_query_candles` | Query deduplicated historical Klines                      |
+| `warehouse_data_range`    | Get Kline row count and earliest/latest open time         |
+
+## Quick start
+
+```powershell
+cd H:\Code\binance-analysis-mcp
+npm install
+npm run check
+npm run build
+npm run test:mcp
+```
+
+To include a live request to Binance public market data:
+
+```powershell
+npm run test:mcp:live
+```
+
+## Local persistent cache
+
+Public API responses are cached in SQLite at `data/binance-analysis-cache.sqlite` by default. The cache survives MCP process restarts and uses separate namespaces for Spot and Futures.
+
+- Market price, mark price, order book, and open interest: 15 seconds
+- Candlesticks: 60 seconds
+- Funding-rate history: 10 minutes
+- Maximum stored entries: 10,000, with expired and oldest-entry cleanup
+
+Configure the database and TTL values with the `BINANCE_CACHE_*` environment variables in `.env.example`. Set `BINANCE_PERSISTENT_CACHE_ENABLED=false` to use memory-only caching.
+
+## DuckDB/Parquet history warehouse
+
+The warehouse serves a different purpose than the short-lived API cache. SQLite avoids repeated network calls; Parquet stores multi-symbol, multi-year data and DuckDB queries it in place. V1 has three profiles:
+
+- `binance-kline`: official headerless 12-column Binance Kline CSV/ZIP, automatic ms/us timestamp handling, and year/month partitioning.
+- `generic-csv`: regular CSV (header by default); preserves DuckDB-inferred source columns and adds audit columns.
+- `parquet`: copies existing Parquet into the managed warehouse and records its metadata.
+
+No storage location is hardcoded. The current Codex Desktop configuration puts all runtime data under `H:\marketData`; defaults remain project-local until overridden by environment variables. See the [warehouse guide](docs/WAREHOUSE.md) and [environment reference](docs/ENVIRONMENT.md) for paths, the full contract, and examples.
+
+The server transports MCP messages over stdin/stdout, so application logs must never be written to stdout. See the [connection and troubleshooting guide](docs/CONNECTING.md) for client setup and [architecture and conventions](docs/ARCHITECTURE.md) for code boundaries.
+
+## Example prompts
+
+- Analyze the trend, RSI, and MACD of the latest 200 one-hour BTCUSDT candles.
+- Compare BTCUSDT, ETHUSDT, and SOLUSDT by 24-hour quote volume and price change.
+- Inspect the first 100 ETHUSDT order-book levels and explain the spread and imbalance.
+- Analyze the KORUUSDT perpetual contract using mark price, funding, open interest, and one-hour indicators.
+- Import `H:\MarketImports\BTCUSDT-1h-2025-01.zip` as Binance Klines and inspect its data range.
+
+## Data source
+
+The implementation uses public market-data endpoints from Binance's official [Spot REST API](https://developers.binance.com/en/docs/products/spot/rest-api) and [USD-M Futures API](https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api). Confirm that Binance is available in your jurisdiction and follow the current API limits and terms of use.
