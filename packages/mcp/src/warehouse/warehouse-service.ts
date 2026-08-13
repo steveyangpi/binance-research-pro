@@ -8,10 +8,11 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, delimiter, extname, join, resolve } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 import { DuckDBInstance } from '@duckdb/node-api';
 import AdmZip from 'adm-zip';
 import type { AppConfig } from '../config.js';
+import { parsePathList } from '../platform-paths.js';
 import { sha256File, verifySha256 } from './checksum.js';
 import { downloadToFile } from './download.js';
 import { WarehouseMetadataStore } from './metadata-store.js';
@@ -68,10 +69,7 @@ export class WarehouseService {
   public constructor(private readonly config: AppConfig) {
     this.parquetRoot = resolve(config.WAREHOUSE_PARQUET_ROOT);
     this.tempRoot = resolve(config.WAREHOUSE_TEMP_DIR);
-    this.importRoots = config.WAREHOUSE_IMPORT_ROOTS.split(delimiter)
-      .map((path) => path.trim())
-      .filter((path) => path.length > 0)
-      .map((path) => resolve(path));
+    this.importRoots = parsePathList(config.WAREHOUSE_IMPORT_ROOTS);
     mkdirSync(this.parquetRoot, { recursive: true });
     mkdirSync(this.tempRoot, { recursive: true });
     for (const root of this.importRoots) mkdirSync(root, { recursive: true });
@@ -115,6 +113,7 @@ export class WarehouseService {
   public status(): Record<string, unknown> {
     return {
       enabled: true,
+      dataDirectory: this.config.BINANCE_RESEARCH_DATA_DIR,
       parquetRoot: this.parquetRoot,
       metadataDatabasePath: resolve(this.config.WAREHOUSE_METADATA_DB_PATH),
       importRoots: this.importRoots,

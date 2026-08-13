@@ -1,10 +1,24 @@
+# Dependencies and generated output
 node_modules/
 dist/
 coverage/
-.env
-*.log
+*.tsbuildinfo
+
+# Runtime state
 data/
 imports/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Local and generated files
+.DS_Store
+.claude/
+Thumbs.db
+*.log
+*.tmp
+
+# Never commit credentials
+.env
+.env.*
+!.env.example

@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "binance-research-pro": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package=@steveyangpi/binance-research-pro-mcp@0.3.0",
+        "--",
+        "binance-research-pro-mcp"
+      ],
+      "env_vars": [
+        "BINANCE_RESEARCH_DATA_DIR",
+        "BINANCE_REST_BASE_URL",
+        "BINANCE_FUTURES_REST_BASE_URL",
+        "BINANCE_REQUEST_TIMEOUT_MS",
+        "BINANCE_CACHE_TTL_MS",
+        "BINANCE_CANDLE_CACHE_TTL_MS",
+        "BINANCE_FUNDING_CACHE_TTL_MS",
+        "BINANCE_PERSISTENT_CACHE_ENABLED",
+        "BINANCE_CACHE_DB_PATH",
+        "BINANCE_CACHE_MAX_ENTRIES",
+        "WAREHOUSE_ENABLED",
+        "WAREHOUSE_PARQUET_ROOT",
+        "WAREHOUSE_METADATA_DB_PATH",
+        "WAREHOUSE_TEMP_DIR",
+        "WAREHOUSE_IMPORT_ROOTS",
+        "WAREHOUSE_MAX_IMPORT_BYTES",
+        "WAREHOUSE_DOWNLOAD_TIMEOUT_MS"
+      ]
+    }
+  }
+}

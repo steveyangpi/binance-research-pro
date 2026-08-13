@@ -1,61 +1,43 @@
-# Architecture and conventions
+# Architecture
 
-[简体中文](ARCHITECTURE.zh-CN.md)
+## Deliverables
 
-## Layers
-
-```text
-src/index.ts                Composition root: creates the server and transport
-src/mcp/                    MCP tools, input schemas, and protocol results
-src/services/               Market analysis and indicator calculations
-src/binance/                Separate Spot/Futures HTTP clients and response normalization
-src/cache/                  Persistent SQLite and fallback in-memory caches
-src/warehouse/              Parquet imports, DuckDB queries, SQLite metadata, path safety
-src/types/                  Internal normalized types for external data
-scripts/mcp-smoke-test.mjs  MCP handshake and optional live-call test
-```
-
-The tool layer never makes HTTP requests directly, and raw Binance payloads are not exposed without normalization. Numeric fields are converted to `number` at the API boundary, while the analysis layer depends only on normalized domain types such as `BinanceKline`.
-
-## Data flow
+The repository produces two independently versioned artifacts:
 
 ```text
-MCP Client -> MCP tool + Zod validation -> Spot/Futures analysis service
-           -> TTL cache -> Spot/Futures API client -> Binance REST APIs
-           <- normalized domain data <- indicator calculations
-
-MCP client -> warehouse tool -> serialized import queue -> CSV/ZIP/Parquet
-           -> DuckDB conversion -> year/month Parquet partitions
-           -> SQLite metadata, checksums, and import state
+Codex plugin (repository root)
+  ├─ manifest and Skills
+  └─ .mcp.json ──npx/stdin/stdout──> private MCP npm package
+                                      ├─ Spot and USD-M HTTP clients
+                                      ├─ in-memory + SQLite response cache
+                                      └─ DuckDB/Parquet history warehouse
 ```
 
-## Conventions
+The plugin version is a Codex cachebuster. The MCP package uses semantic versioning. Their versions are intentionally not required to match.
 
-- TypeScript `strict` is enabled, implicit `any` is prohibited, and ESM imports use explicit `.js` suffixes.
-- Every tool argument is validated with Zod; symbols are normalized to uppercase.
-- stdout is reserved for MCP protocol messages. Future logs must use stderr and must never contain secrets.
-- Public market data uses a short TTL cache. Authenticated account or trading modules must not reuse the unauthenticated client.
-- Spot and USD-M Futures use separate base URLs, clients, cache namespaces, and MCP tool names.
-- Indicator results should include their parameters, data timestamp, and a non-investment-advice notice.
-- Generic sources use import profiles rather than platform API adapters; V1 does not perform complex cleaning or cross-platform semantic mapping.
+## Runtime flow
 
-## Local storage
+1. Codex loads `.codex-plugin/plugin.json` and discovers the four Skills.
+2. `.mcp.json` starts an exact private package with `npx`.
+3. Codex forwards only the optional variables listed in `env_vars`.
+4. The MCP server exposes public market and local-warehouse tools over stdio JSON-RPC.
+5. Skills select tools, interpret results, and enforce research and risk boundaries.
 
-`SqliteCache` stores normalized public API responses as JSON in `cache_entries`. Each row contains a namespaced key, payload, expiration time, and update time. WAL mode allows safe access by local MCP processes. Expired rows are removed on read and periodically on write; when the configured capacity is exceeded, the oldest rows are removed.
+No checkout path is needed at runtime. Package authentication is handled by npm/GitHub Packages configuration on the host, outside the plugin.
 
-The database contains public market data only. API credentials, prompts, model responses, and account data are never stored. `TtlCache` remains available when persistent caching is disabled.
+## Data layers
 
-### Historical warehouse
+- Live market layer: Binance public Spot and USD-M REST endpoints.
+- Ephemeral cache: deduplicates concurrent requests and applies short TTLs.
+- Persistent cache: optional SQLite cache under the portable data directory.
+- History warehouse: DuckDB metadata plus partitioned Parquet files. Imports accept allowlisted local roots or validated HTTPS sources.
 
-`WarehouseService` owns generic file import and DuckDB queries. `WarehouseMetadataStore` records jobs, provenance, SHA-256, ranges, and Parquet paths. Klines use a stable schema and the hierarchy `dataset/source/market/symbol/interval/import/year/month`. Queries select files from metadata, then use DuckDB projection, filtering, and `open_time` deduplication.
+## Trust boundaries
 
-Writes are serialized inside one MCP process. A deployment should still have only one warehouse writer; separate readers may share Parquet but should not concurrently modify the metadata database. Partition values use a safe character set, local files must be under `WAREHOUSE_IMPORT_ROOTS`, and downloads enforce HTTPS, redirect/address validation, maximum size, and timeout.
+- Binance responses are untrusted network input and are schema-validated.
+- Environment endpoint overrides must use HTTPS.
+- Remote warehouse downloads reject credentials, redirects to non-public addresses, and oversized bodies.
+- Local imports must remain inside configured roots; resolved paths and filesystem links are checked.
+- ZIP extraction validates entries and size limits before committing metadata.
 
-## Code-review findings and known boundaries
-
-- The MCP, HTTP, analysis, and cache responsibilities are cleanly separated; input schemas and Binance response normalization are placed appropriately.
-- Trend labels currently use one timeframe and are not trading signals.
-- Persistent cache capacity and TTL values are configurable; different request shapes remain separate cache keys.
-- RSI currently returns 100 for a completely flat series; 50 is a more common convention, so this needs an edge-case fix and test.
-- Calling `market_overview` without a symbol fetches the complete 24-hour ticker list; clients should avoid high-frequency calls.
-- A future WebSocket depth implementation must validate snapshot/event ordering and handle connection rotation and reconnection.
+DNS validation and the subsequent HTTP connection are separate operations in the current fetch implementation. This leaves a theoretical DNS-rebinding window; deployments should use trusted HTTPS import hosts and network egress controls for high-assurance environments.

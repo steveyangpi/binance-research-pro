@@ -1,6 +1,10 @@
 import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import {
+  getDefaultEnvironment,
+  StdioClientTransport,
+} from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const expectedTools = [
   'analyze_futures',
@@ -26,7 +30,13 @@ const expectedTools = [
   'warehouse_query_candles',
   'warehouse_status',
 ];
-const serverEntry = fileURLToPath(new URL('../dist/index.js', import.meta.url));
+const serverEntry = process.env.MCP_TEST_SERVER_ENTRY
+  ? resolve(process.env.MCP_TEST_SERVER_ENTRY)
+  : fileURLToPath(new URL('../dist/index.js', import.meta.url));
+const serverCommand = process.env.MCP_TEST_COMMAND ?? process.execPath;
+const serverArguments = process.env.MCP_TEST_ARGS_JSON
+  ? JSON.parse(process.env.MCP_TEST_ARGS_JSON)
+  : [serverEntry];
 // The MCP SDK intentionally inherits only a safe subset of the parent environment.
 // Forward this server's documented configuration so smoke tests match desktop startup.
 const serverEnvironment = Object.fromEntries(
@@ -35,9 +45,10 @@ const serverEnvironment = Object.fromEntries(
       value !== undefined && (name.startsWith('BINANCE_') || name.startsWith('WAREHOUSE_')),
   ),
 );
+Object.assign(serverEnvironment, getDefaultEnvironment());
 const transport = new StdioClientTransport({
-  command: process.execPath,
-  args: [serverEntry],
+  command: serverCommand,
+  args: serverArguments,
   env: serverEnvironment,
   stderr: 'pipe',
 });

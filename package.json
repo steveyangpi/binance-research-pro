@@ -1,41 +1,32 @@
 {
-  "name": "binance-analysis-mcp",
+  "name": "binance-research-pro-workspace",
   "version": "0.2.0",
   "private": true,
-  "description": "Binance market-analysis MCP server with a local DuckDB/Parquet warehouse",
-  "type": "module",
+  "description": "Monorepo for the Binance Research Pro Codex plugin and private MCP server",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace packages/mcp",
+    "dev:mcp": "npm run dev --workspace packages/mcp",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "npm run lint --workspace packages/mcp",
+    "test": "npm run test --workspace packages/mcp",
+    "test:mcp": "npm run test:mcp --workspace packages/mcp",
+    "test:mcp:live": "npm run test:mcp:live --workspace packages/mcp",
+    "test:package": "npm run test:package --workspace packages/mcp",
+    "check:plugin": "node scripts/run-plugin-validator.mjs",
+    "check:versions": "node scripts/check-version-sync.mjs",
+    "check:plugin-release": "node scripts/check-version-sync.mjs --require-current",
+    "check": "npm run format:check && npm run lint && npm run build && npm run test && npm run test:mcp && npm run check:plugin && npm run check:versions",
+    "release:check": "npm run check && npm run test:package",
+    "plugin:release-check": "npm run check && npm run check:plugin-release"
+  },
   "engines": {
     "node": ">=22.13.0"
   },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
-    "lint": "eslint .",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "test": "vitest run",
-    "test:mcp": "node scripts/mcp-smoke-test.mjs",
-    "test:mcp:live": "node scripts/mcp-smoke-test.mjs --live",
-    "check": "npm run format:check && npm run lint && npm run build && npm run test"
-  },
-  "dependencies": {
-    "@duckdb/node-api": "^1.5.5-r.4",
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "adm-zip": "^0.6.0",
-    "zod": "^3.24.4"
-  },
   "devDependencies": {
-    "@eslint/js": "^9.29.0",
-    "@types/adm-zip": "^0.5.8",
-    "@types/node": "^22.15.30",
-    "eslint": "^9.29.0",
-    "eslint-config-prettier": "^10.1.5",
-    "globals": "^16.1.0",
-    "prettier": "^3.5.3",
-    "tsx": "^4.19.4",
-    "typescript": "^5.8.3",
-    "typescript-eslint": "^8.34.0",
-    "vitest": "^3.2.3"
+    "prettier": "^3.5.3"
   }
 }

@@ -1,0 +1,26 @@
+{
+  "name": "binance-research-pro",
+  "version": "0.2.0+codex.20260813022046",
+  "description": "Private Binance Spot, USD-M Futures and historical market research workflows",
+  "author": {
+    "name": "Sai"
+  },
+  "license": "UNLICENSED",
+  "keywords": ["binance", "crypto", "market-research", "futures", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Binance Research Pro",
+    "shortDescription": "Private Binance market and derivatives research.",
+    "longDescription": "Research Binance Spot and USD-M Futures with public market data, deterministic indicators, multi-timeframe workflows, order-book analysis, and a local DuckDB/Parquet history warehouse. No API key, account access, or trading actions are included.",
+    "developerName": "Sai",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Local data"],
+    "defaultPrompt": [
+      "Analyze BTCUSDT across 1h, 4h, and 1d.",
+      "Compare BTCUSDT, ETHUSDT, and SOLUSDT.",
+      "Review BTCUSDT futures basis, funding, and risk."
+    ],
+    "brandColor": "#F0B90B"
+  }
+}

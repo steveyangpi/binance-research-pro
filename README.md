@@ -1,95 +1,84 @@
-# Binance Analysis MCP Server
+# Binance Research Pro
 
 [简体中文](README.zh-CN.md)
 
-A Binance Spot and USD-M Futures market-analysis MCP server. Live analysis uses public endpoints only, requires no API key, and has no order, transfer, or account-reading capability. Historical files can be imported into a local DuckDB/Parquet warehouse.
+Binance Research Pro is a private monorepo containing:
 
-> Market data and technical indicators are for analysis only and are not investment advice. Digital-asset prices can be highly volatile; verify the data, rules, and risks independently.
+- a Codex plugin at the repository root;
+- the publishable `@steveyangpi/binance-research-pro-mcp` stdio server in `packages/mcp`.
 
-## Features
+The project researches Binance Spot and USD-M Futures public market data and maintains an optional local DuckDB/Parquet history warehouse. It has no Binance credentials, account access, order execution, transfer, or withdrawal capability.
 
-| MCP tool                   | Description                                                         |
-| -------------------------- | ------------------------------------------------------------------- |
-| `market_overview`          | Get 24-hour statistics for one symbol or the most liquid USDT pairs |
-| `get_candles`              | Get normalized OHLCV candlesticks                                   |
-| `analyze_indicators`       | Calculate SMA, EMA, RSI, MACD, Bollinger Bands, and ATR             |
-| `analyze_trend`            | Summarize single-timeframe trend and momentum state                 |
-| `order_book_snapshot`      | Get order-book depth and calculate spread and notional imbalance    |
-| `exchange_info`            | Get symbol status, precision, order types, and trading filters      |
-| `compare_markets`          | Compare 2–20 Spot symbols using normalized 24-hour data             |
-| `multi_timeframe_analysis` | Analyze trend alignment across 2–5 intervals                        |
+## Why one repository
 
-### USD-M Futures tools
+Plugin Skills, MCP tool schemas, tests, and documentation evolve together. Keeping them in one repository makes an incompatible change visible in one review and allows CI to validate both deliverables. Runtime deployment remains decoupled: the plugin launches a pinned private GitHub Packages version instead of a source-tree path.
 
-| MCP tool                      | Description                                                            |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `futures_market_overview`     | Get 24-hour perpetual-contract statistics                              |
-| `futures_mark_price`          | Get mark/index prices, basis, funding rate, and next funding time      |
-| `futures_candles`             | Get normalized USD-M Futures OHLCV candlesticks                        |
-| `futures_order_book_snapshot` | Get Futures depth, spread, and notional imbalance                      |
-| `futures_open_interest`       | Get current contract open interest                                     |
-| `futures_funding_rate`        | Get historical funding rates                                           |
-| `analyze_futures`             | Combine price, basis, funding, open interest, and technical indicators |
+## Repository map
 
-### Local data warehouse tools
-
-| MCP tool                  | Description                                               |
-| ------------------------- | --------------------------------------------------------- |
-| `warehouse_import_file`   | Import CSV, ZIP, or Parquet from an allowlisted directory |
-| `warehouse_import_url`    | Download an HTTPS file, optionally verify SHA-256, import |
-| `warehouse_status`        | Show configured paths, limits, and import totals          |
-| `warehouse_list_datasets` | List datasets, symbols, intervals, and time ranges        |
-| `warehouse_list_files`    | List managed Parquet files and import metadata            |
-| `warehouse_query_candles` | Query deduplicated historical Klines                      |
-| `warehouse_data_range`    | Get Kline row count and earliest/latest open time         |
-
-## Quick start
-
-```powershell
-cd H:\Code\binance-analysis-mcp
-npm install
-npm run check
-npm run build
-npm run test:mcp
+```text
+.codex-plugin/plugin.json       Codex plugin manifest
+.mcp.json                       Portable, pinned MCP launch configuration
+skills/                         Spot, derivatives, history, and risk workflows
+packages/mcp/                   TypeScript MCP npm workspace
+scripts/                        Cross-deliverable validation
+docs/                           Architecture, development, release, and security
+.github/workflows/              CI and manual private-package publishing
 ```
 
-To include a live request to Binance public market data:
+## Requirements
+
+- Node.js 22.13 or newer and npm.
+- Python 3 for the dependency-free plugin validator.
+- GitHub Packages read access for `@steveyangpi` when running the installed plugin.
+- Network access to Binance public endpoints for live research.
+
+No `BINANCE_API_KEY` or `BINANCE_API_SECRET` is accepted.
+
+## Development quick start
+
+```powershell
+git clone https://github.com/steveyangpi/binance-research-pro.git
+cd binance-research-pro
+npm install
+npm run check
+npm run test:package
+```
+
+`npm run check` validates formatting, lint, TypeScript, unit tests, an MCP handshake, the plugin package, and the staged release state. `npm run test:package` performs `npm pack`, installs the tarball in an isolated consumer, and handshakes with that installed package.
+
+Live Binance validation is explicit:
 
 ```powershell
 npm run test:mcp:live
 ```
 
-## Local persistent cache
+## Runtime model
 
-Public API responses are cached in SQLite at `data/binance-analysis-cache.sqlite` by default. The cache survives MCP process restarts and uses separate namespaces for Spot and Futures.
+The plugin launches the fixed private package declared in [.mcp.json](.mcp.json). Optional host settings such as `BINANCE_RESEARCH_DATA_DIR` are forwarded by name through `env_vars`; their values stay on each host.
 
-- Market price, mark price, order book, and open interest: 15 seconds
-- Candlesticks: 60 seconds
-- Funding-rate history: 10 minutes
-- Maximum stored entries: 10,000, with expired and oldest-entry cleanup
+Default data locations are OS-specific. Set one root to move all cache and warehouse state:
 
-Configure the database and TTL values with the `BINANCE_CACHE_*` environment variables in `.env.example`. Set `BINANCE_PERSISTENT_CACHE_ENABLED=false` to use memory-only caching.
+```powershell
+[Environment]::SetEnvironmentVariable(
+  'BINANCE_RESEARCH_DATA_DIR',
+  'H:\marketData',
+  'User'
+)
+```
 
-## DuckDB/Parquet history warehouse
+Fully restart Codex after changing a forwarded host variable.
 
-The warehouse serves a different purpose than the short-lived API cache. SQLite avoids repeated network calls; Parquet stores multi-symbol, multi-year data and DuckDB queries it in place. V1 has three profiles:
+## Change and release policy
 
-- `binance-kline`: official headerless 12-column Binance Kline CSV/ZIP, automatic ms/us timestamp handling, and year/month partitioning.
-- `generic-csv`: regular CSV (header by default); preserves DuckDB-inferred source columns and adds audit columns.
-- `parquet`: copies existing Parquet into the managed warehouse and records its metadata.
+1. Change MCP implementation and tests in `packages/mcp`.
+2. Update affected Skills and documentation in the same change.
+3. Run `npm run release:check`.
+4. Publish a new immutable MCP package version.
+5. Verify the registry package in a clean environment.
+6. Pin that version in `.mcp.json`, update the plugin cachebuster, and reinstall the plugin.
 
-No storage location is hardcoded. The current Codex Desktop configuration puts all runtime data under `H:\marketData`; defaults remain project-local until overridden by environment variables. See the [warehouse guide](docs/WAREHOUSE.md) and [environment reference](docs/ENVIRONMENT.md) for paths, the full contract, and examples.
+Never point the installed plugin at a repository `dist/index.js` path. See [Development](docs/DEVELOPMENT.md), [Releasing](docs/RELEASING.md), [Architecture](docs/ARCHITECTURE.md), and [Security](docs/SECURITY.md).
 
-The server transports MCP messages over stdin/stdout, so application logs must never be written to stdout. See the [connection and troubleshooting guide](docs/CONNECTING.md) for client setup and [architecture and conventions](docs/ARCHITECTURE.md) for code boundaries.
+## Research boundary
 
-## Example prompts
-
-- Analyze the trend, RSI, and MACD of the latest 200 one-hour BTCUSDT candles.
-- Compare BTCUSDT, ETHUSDT, and SOLUSDT by 24-hour quote volume and price change.
-- Inspect the first 100 ETHUSDT order-book levels and explain the spread and imbalance.
-- Analyze the KORUUSDT perpetual contract using mark price, funding, open interest, and one-hour indicators.
-- Import `H:\MarketImports\BTCUSDT-1h-2025-01.zip` as Binance Klines and inspect its data range.
-
-## Data source
-
-The implementation uses public market-data endpoints from Binance's official [Spot REST API](https://developers.binance.com/en/docs/products/spot/rest-api) and [USD-M Futures API](https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api). Confirm that Binance is available in your jurisdiction and follow the current API limits and terms of use.
+Results are descriptive market research, not personalized financial advice. Verify data freshness, exchange rules, regional availability, liquidity, and volatility before relying on any result.

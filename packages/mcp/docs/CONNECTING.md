@@ -1,0 +1,106 @@
+# MCP connection and troubleshooting
+
+[简体中文](CONNECTING.zh-CN.md)
+
+## Prerequisites
+
+- Node.js 22.13 or newer.
+- npm/npx and registry access for the first installation.
+- Network access to the public Binance Spot and USDⓈ-M Futures APIs.
+- Codex Desktop/CLI/IDE, or another local stdio MCP client.
+
+## Recommended: launch a pinned npm version
+
+Plugins and cross-machine deployments should use a fixed version instead of a source-tree path:
+
+```powershell
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.1 -- binance-research-pro-mcp
+```
+
+npx downloads and caches the private package on first launch. Configure the `@steveyangpi` GitHub Packages registry and authentication first. Upgrades are explicit version changes and must be revalidated.
+
+Register it as a standalone Codex MCP only when the plugin is not installed:
+
+```powershell
+codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.1 -- binance-research-pro-mcp
+codex mcp list
+```
+
+The `Binance Research Pro` plugin already launches this server from its `.mcp.json`, so a duplicate standalone registration is unnecessary.
+
+User-level `~/.codex/config.toml` example:
+
+```toml
+[mcp_servers.binance-research-pro]
+command = "npx"
+args = ["-y", "--package=@steveyangpi/binance-research-pro-mcp@0.3.1", "--", "binance-research-pro-mcp"]
+startup_timeout_sec = 60
+tool_timeout_sec = 30
+enabled = true
+```
+
+To move all runtime data to a chosen disk, add one variable:
+
+```toml
+[mcp_servers.binance-research-pro.env]
+BINANCE_RESEARCH_DATA_DIR = "D:\\BinanceResearchPro"
+```
+
+Codex Desktop, CLI, and IDE share the Codex MCP configuration. Start a new task or restart the client after changing it. Official reference: [OpenAI Codex MCP documentation](https://developers.openai.com/codex/mcp/).
+
+## Other stdio MCP clients
+
+```json
+{
+  "mcpServers": {
+    "binance-research-pro": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package=@steveyangpi/binance-research-pro-mcp@0.3.1",
+        "--",
+        "binance-research-pro-mcp"
+      ],
+      "env": {
+        "BINANCE_RESEARCH_DATA_DIR": "D:\\BinanceResearchPro"
+      }
+    }
+  }
+}
+```
+
+Omit `env` to use the current operating system's per-user application-data directory.
+
+## Source development and release verification
+
+```powershell
+cd <binance-research-pro repository>
+npm install
+npm run check
+npm run test:package
+```
+
+- `test:mcp` launches a real MCP client against the current `dist` output.
+- `test:package` packs a tarball, installs it in an isolated consumer project, then launches and handshakes with the installed package. It must pass before publishing.
+- `test:mcp:live` additionally calls public Binance endpoints.
+
+## Verification prompts
+
+1. `Call market_overview with symbol=BTCUSDT.`
+2. `Call analyze_futures with symbol=BTCUSDT, interval=1h, limit=200.`
+3. `Call warehouse_status and return dataDirectory, the Parquet root, and imported file count.`
+
+## Troubleshooting
+
+| Symptom                     | Check                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| First startup times out     | Confirm registry access and raise `startup_timeout_sec` to 60 seconds.                                    |
+| No tools are listed         | Run the pinned command directly, inspect installation errors, then restart the client.                    |
+| Windows cannot find `npx`   | Ensure Node.js is on PATH; some clients may need `npx.cmd`.                                               |
+| Binance timeout or 429      | Check network/region availability, reduce call frequency, or increase cache TTL.                          |
+| Local import is rejected    | Call `warehouse_status` and import only from its `importRoots`.                                           |
+| Offline startup is required | Warm the pinned package cache once, or use a private mirror/preinstalled package for fully offline hosts. |
+
+## Security boundary
+
+The server neither reads nor requests `BINANCE_API_KEY` / `BINANCE_API_SECRET`, and has no account, trading, transfer, or withdrawal tools. Never put credentials in MCP configuration, environment variables, logs, or screenshots.

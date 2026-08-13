@@ -70,7 +70,11 @@ export class BinanceApiClient {
     try {
       const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) {
-        throw new BinanceApiError(`Binance returned HTTP ${response.status}`, response.status);
+        const message = await this.errorMessage(response);
+        throw new BinanceApiError(
+          `Binance returned HTTP ${response.status}: ${message}`,
+          response.status,
+        );
       }
       return (await response.json()) as T;
     } catch (error) {
@@ -80,6 +84,17 @@ export class BinanceApiClient {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private async errorMessage(response: Response): Promise<string> {
+    const body = await response.text();
+    try {
+      const payload = JSON.parse(body) as { msg?: unknown };
+      if (typeof payload.msg === 'string') return payload.msg;
+    } catch {
+      // Use the bounded response text below when Binance did not return JSON.
+    }
+    return body.slice(0, 200) || 'Unknown Binance error';
   }
 
   private toKline(row: unknown[]): BinanceKline {

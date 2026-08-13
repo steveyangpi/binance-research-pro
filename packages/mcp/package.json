@@ -1,0 +1,60 @@
+{
+  "name": "@steveyangpi/binance-research-pro-mcp",
+  "version": "0.3.1",
+  "description": "Private Binance Research Pro MCP server",
+  "type": "module",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/steveyangpi/binance-research-pro.git",
+    "directory": "packages/mcp"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "bin": {
+    "binance-research-pro-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:mcp": "node scripts/mcp-smoke-test.mjs",
+    "test:mcp:live": "node scripts/mcp-smoke-test.mjs --live",
+    "test:package": "npm run build && node scripts/package-smoke-test.mjs",
+    "check": "npm run format:check && npm run lint && npm run build && npm run test",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "^1.5.5-r.4",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "adm-zip": "^0.6.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^22.15.30",
+    "eslint": "^9.29.0",
+    "eslint-config-prettier": "^10.1.5",
+    "globals": "^16.1.0",
+    "prettier": "^3.5.3",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.34.0",
+    "vitest": "^3.2.3"
+  }
+}
