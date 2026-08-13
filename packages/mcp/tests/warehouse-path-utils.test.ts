@@ -1,3 +1,4 @@
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isPathInside, validatePartitionValue } from '../src/warehouse/path-utils.js';
 
@@ -9,7 +10,8 @@ describe('warehouse path safety', () => {
   });
 
   it('does not confuse sibling paths with child paths', () => {
-    expect(isPathInside('C:\\data\\lake\\file.csv', 'C:\\data\\lake')).toBe(true);
-    expect(isPathInside('C:\\data\\lake-other\\file.csv', 'C:\\data\\lake')).toBe(false);
+    const parent = resolve('data', 'lake');
+    expect(isPathInside(join(parent, 'file.csv'), parent)).toBe(true);
+    expect(isPathInside(resolve('data', 'lake-other', 'file.csv'), parent)).toBe(false);
   });
 });
