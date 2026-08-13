@@ -1,6 +1,6 @@
 {
   "name": "binance-research-pro-workspace",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "private": true,
   "description": "Monorepo for the Binance Research Pro Codex plugin and private MCP server",
   "workspaces": [
@@ -17,9 +17,10 @@
     "test:mcp:live": "npm run test:mcp:live --workspace packages/mcp",
     "test:package": "npm run test:package --workspace packages/mcp",
     "check:plugin": "node scripts/run-plugin-validator.mjs",
+    "check:skill-tools": "node scripts/check-skill-tools.mjs",
     "check:versions": "node scripts/check-version-sync.mjs",
     "check:plugin-release": "node scripts/check-version-sync.mjs --require-current",
-    "check": "npm run format:check && npm run lint && npm run build && npm run test && npm run test:mcp && npm run check:plugin && npm run check:versions",
+    "check": "npm run format:check && npm run lint && npm run build && npm run test && npm run test:mcp && npm run check:plugin && npm run check:skill-tools && npm run check:versions",
     "release:check": "npm run check && npm run test:package",
     "plugin:release-check": "npm run check && npm run check:plugin-release"
   },

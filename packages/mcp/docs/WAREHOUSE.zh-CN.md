@@ -60,7 +60,7 @@ trade_count,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore
 先把本地文件放进 `H:\marketData\imports`，然后发送：
 
 ```text
-调用 binance-analysis 的 warehouse_import_file：
+调用 binance-research-pro 的 warehouse_import_file：
 path=H:\marketData\imports\BTCUSDT-1h-2025-01.zip
 dataset=candles
 source=binance-public-data

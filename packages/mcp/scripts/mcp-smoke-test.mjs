@@ -52,7 +52,7 @@ const transport = new StdioClientTransport({
   env: serverEnvironment,
   stderr: 'pipe',
 });
-const client = new Client({ name: 'binance-analysis-smoke-test', version: '0.1.0' });
+const client = new Client({ name: 'binance-research-pro-smoke-test', version: '0.1.0' });
 
 try {
   await client.connect(transport);
@@ -73,13 +73,43 @@ try {
   }
   console.log(`Warehouse MCP call passed. Parquet root: ${warehouse.parquetRoot}`);
 
-  const marketOverviewTool = response.tools.find((tool) => tool.name === 'market_overview');
-  if (
-    marketOverviewTool?.outputSchema === undefined ||
-    marketOverviewTool.annotations?.readOnlyHint !== true ||
-    marketOverviewTool.annotations?.openWorldHint !== true
-  ) {
-    throw new Error('market_overview is missing its output schema or safety annotations');
+  const toolsByName = new Map(response.tools.map((tool) => [tool.name, tool]));
+  for (const tool of response.tools) {
+    if (
+      tool.inputSchema === undefined ||
+      tool.outputSchema === undefined ||
+      tool.annotations === undefined
+    ) {
+      throw new Error(`${tool.name} is missing an MCP schema or safety annotations`);
+    }
+  }
+
+  const publicReadTools = expectedTools.filter((name) => !name.startsWith('warehouse_'));
+  const localReadTools = expectedTools.filter(
+    (name) =>
+      name.startsWith('warehouse_') &&
+      !['warehouse_import_file', 'warehouse_import_url'].includes(name),
+  );
+  for (const name of publicReadTools) {
+    const annotations = toolsByName.get(name)?.annotations;
+    if (annotations?.readOnlyHint !== true || annotations.openWorldHint !== true) {
+      throw new Error(`${name} must be a read-only public-network tool`);
+    }
+  }
+  for (const name of localReadTools) {
+    const annotations = toolsByName.get(name)?.annotations;
+    if (annotations?.readOnlyHint !== true || annotations.openWorldHint !== false) {
+      throw new Error(`${name} must be a read-only local warehouse tool`);
+    }
+  }
+  for (const [name, openWorldHint] of [
+    ['warehouse_import_file', false],
+    ['warehouse_import_url', true],
+  ]) {
+    const annotations = toolsByName.get(name)?.annotations;
+    if (annotations?.readOnlyHint !== false || annotations.openWorldHint !== openWorldHint) {
+      throw new Error(`${name} has incorrect state-change safety annotations`);
+    }
   }
 
   if (process.argv.includes('--live')) {

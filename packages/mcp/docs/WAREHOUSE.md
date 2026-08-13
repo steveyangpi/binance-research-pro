@@ -60,7 +60,7 @@ Reads existing Parquet and copies it into the managed warehouse with audit colum
 Put a local file under `H:\marketData\imports`, then send:
 
 ```text
-Call warehouse_import_file from binance-analysis with:
+Call warehouse_import_file from binance-research-pro with:
 path=H:\marketData\imports\BTCUSDT-1h-2025-01.zip
 dataset=candles
 source=binance-public-data

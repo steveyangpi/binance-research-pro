@@ -45,11 +45,15 @@
 
 ## 快速开始
 
-从 npm 启动已发布版本（适用于插件和跨机器部署）：
+需要 Node.js 22.13 或更高版本。访问私有 GitHub Packages 前，先配置 `@steveyangpi` registry，并使用有权读取该 restricted 包的账号完成认证：
 
 ```powershell
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.1 -- binance-research-pro-mcp
+npm config set @steveyangpi:registry https://npm.pkg.github.com
+npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.github.com
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.2 -- binance-research-pro-mcp
 ```
+
+该命令是 stdio server，会等待 MCP JSON-RPC 输入。它不接受 Binance 凭据，也不提供账户或交易操作。设置 `BINANCE_RESEARCH_DATA_DIR` 可迁移可选本地缓存与仓库；否则默认使用操作系统的用户应用数据目录。宿主配置和发布说明见仓库的[安装指南](../../docs/INSTALLATION.zh-CN.md)。
 
 从源码开发：
 

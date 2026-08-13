@@ -80,6 +80,8 @@ def main() -> None:
     manifest = load_json(MANIFEST)
     if manifest.get("name") != "binance-research-pro":
         fail("Manifest name must be binance-research-pro")
+    if not re.fullmatch(r"\d+\.\d+\.\d+\+codex\.\d{14}", manifest.get("version", "")):
+        fail("Manifest version must use X.Y.Z+codex.YYYYMMDDHHmmss UTC metadata")
     if manifest.get("mcpServers") != "./.mcp.json":
         fail("Manifest must reference ./.mcp.json")
     if manifest.get("skills") != "./skills/":

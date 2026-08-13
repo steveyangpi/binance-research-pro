@@ -77,7 +77,8 @@ try {
     cwd: consumerDirectory,
     env: {
       ...process.env,
-      MCP_TEST_SERVER_ENTRY: installedEntry,
+      MCP_TEST_COMMAND: installedCli,
+      MCP_TEST_ARGS_JSON: '[]',
       BINANCE_RESEARCH_DATA_DIR: runtimeDataDirectory,
     },
   });

@@ -45,11 +45,15 @@ A Binance Spot and USD-M Futures market-analysis MCP server. Live analysis uses 
 
 ## Quick start
 
-Run the published package for plugin and cross-machine deployments:
+Requires Node.js 22.13 or later. For private GitHub Packages access, configure the `@steveyangpi` registry and authenticate with an account authorized to read this restricted package before running the server:
 
 ```powershell
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.1 -- binance-research-pro-mcp
+npm config set @steveyangpi:registry https://npm.pkg.github.com
+npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.github.com
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.2 -- binance-research-pro-mcp
 ```
+
+The command is a stdio server and waits for MCP JSON-RPC input. It accepts no Binance credentials and exposes no account or trading actions. Set `BINANCE_RESEARCH_DATA_DIR` to move its optional local cache and warehouse; otherwise it uses the operating system's per-user application-data directory. See the repository's [installation guide](../../docs/INSTALLATION.md) for host setup and release guidance.
 
 Develop from source:
 

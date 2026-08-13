@@ -10,7 +10,7 @@ npm run check
 npm run test:package
 ```
 
-检查内容包括仓库格式、ESLint、TypeScript、单元测试、可重复的 MCP 握手与工具 Schema、插件结构、分阶段发布状态、tarball 内容、隔离安装以及从安装包启动后的握手。
+检查内容包括仓库格式、ESLint、TypeScript、单元测试、可重复的 MCP 握手、所有已暴露工具的 Schema 与安全 annotations、canonical Skill 到 tool 的引用、插件结构、普通发布状态校验、tarball 内容、隔离安装，以及通过已安装 CLI 启动后的握手。
 
 ## 可选实时测试
 

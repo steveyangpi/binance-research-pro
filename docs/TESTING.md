@@ -10,7 +10,7 @@ npm run check
 npm run test:package
 ```
 
-The gate covers repository formatting, ESLint, TypeScript, unit tests, a deterministic MCP handshake and tool-schema check, plugin structure, release-state validation, tarball contents, isolated installation, and a handshake with the installed package.
+The gate covers repository formatting, ESLint, TypeScript, unit tests, deterministic MCP handshakes, every exposed tool's schema and safety annotations, canonical Skill-to-tool references, Plugin structure, normal release-state validation, tarball contents, isolated installation, and a handshake through the installed CLI.
 
 ## Optional live gate
 

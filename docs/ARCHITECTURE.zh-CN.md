@@ -2,7 +2,7 @@
 
 ## 两个交付物
 
-仓库生成两个独立版本的产物：
+仓库生成两个协调发布的交付物：
 
 ```text
 Codex 插件（仓库根目录）
@@ -13,7 +13,7 @@ Codex 插件（仓库根目录）
                                       └─ DuckDB/Parquet 历史仓库
 ```
 
-插件版本是 Codex cachebuster；MCP 包使用语义化版本。两者不要求相同。
+正式发布时，根 workspace、MCP 包、精确 runtime pin、当前安装文档与最终 Git tag `vX.Y.Z` 共享一个产品版本 `X.Y.Z`。Codex manifest 使用相同 core，并追加 UTC 部署修订：`X.Y.Z+codex.YYYYMMDDHHmmss`。在 MCP 发布期间，源码可暂时领先已安装 pin，直到已发布包通过验证；该两阶段门由 `RELEASING.md` 定义。
 
 ## 运行流程
 

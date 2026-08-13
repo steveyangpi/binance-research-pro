@@ -2,7 +2,7 @@
 
 ## Deliverables
 
-The repository produces two independently versioned artifacts:
+The repository produces two coordinated release deliverables:
 
 ```text
 Codex plugin (repository root)
@@ -13,7 +13,7 @@ Codex plugin (repository root)
                                       └─ DuckDB/Parquet history warehouse
 ```
 
-The plugin version is a Codex cachebuster. The MCP package uses semantic versioning. Their versions are intentionally not required to match.
+A formal release shares one product version, `X.Y.Z`, across the root workspace, MCP package, exact runtime pin, current installation documentation, and final Git tag `vX.Y.Z`. The Codex manifest uses the same core plus a UTC deployment revision: `X.Y.Z+codex.YYYYMMDDHHmmss`. During MCP publication, source may lead the installed pin until the published package has been verified; `RELEASING.md` defines that two-stage gate.
 
 ## Runtime flow
 
