@@ -12,7 +12,7 @@ npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.git
 Use your GitHub username and a classic personal access token with `read:packages`. Repository access is also required because the package is private. Verify the package pinned in `.mcp.json`:
 
 ```powershell
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.0 -- binance-research-pro-mcp
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.1 -- binance-research-pro-mcp
 ```
 
 The command is a stdio server and normally waits silently for JSON-RPC input; stop it with Ctrl+C.
