@@ -66,7 +66,7 @@ const transport = new StdioClientTransport({
   command: serverCommand,
   args: serverArguments,
   env: serverEnvironment,
-  stderr: 'pipe',
+  stderr: 'inherit',
 });
 const client = new Client({ name: 'binance-research-pro-smoke-test', version: '0.1.0' });
 

@@ -53,4 +53,14 @@ jobs:
           BINANCE_RESEARCH_DATA_DIR: ${{ runner.temp }}/binance-research-pro-data
           npm_config_cache: ${{ runner.temp }}/npm-cache
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node packages/mcp/scripts/mcp-smoke-test.mjs
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if node packages/mcp/scripts/mcp-smoke-test.mjs; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              exit 1
+            fi
+            echo "Published package is not ready yet; retrying in 15 seconds."
+            sleep 15
+          done
