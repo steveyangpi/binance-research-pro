@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
 MCP_CONFIG = ROOT / ".mcp.json"
 EXPECTED_SKILLS = {
+    "binance-account-research",
     "binance-market-research",
     "binance-derivatives-research",
     "binance-historical-research",
@@ -27,6 +28,8 @@ EXPECTED_ENV_VARS = {
     "BINANCE_CACHE_TTL_MS",
     "BINANCE_CANDLE_CACHE_TTL_MS",
     "BINANCE_FUNDING_CACHE_TTL_MS",
+    "BINANCE_ACCOUNT_PROFILES_PATH",
+    "BINANCE_ACCOUNT_RECV_WINDOW_MS",
     "BINANCE_PERSISTENT_CACHE_ENABLED",
     "BINANCE_CACHE_DB_PATH",
     "BINANCE_CACHE_MAX_ENTRIES",
@@ -45,6 +48,8 @@ REQUIRED_FILES = {
     ROOT / "CODEX.md",
     ROOT / "docs" / "ARCHITECTURE.md",
     ROOT / "docs" / "ARCHITECTURE.zh-CN.md",
+    ROOT / "docs" / "ACCOUNT-ACCESS.md",
+    ROOT / "docs" / "ACCOUNT-ACCESS.zh-CN.md",
     ROOT / "docs" / "DEVELOPMENT.md",
     ROOT / "docs" / "DEVELOPMENT.zh-CN.md",
     ROOT / "docs" / "SECURITY.md",
@@ -113,7 +118,7 @@ def main() -> None:
     env = server.get("env", {})
     forbidden = {"BINANCE_API_KEY", "BINANCE_API_SECRET"}
     if forbidden.intersection(env) or forbidden.intersection(env_vars):
-        fail("Phase 1 must not configure Binance credentials")
+        fail("Credential values must not be configured directly in the MCP manifest")
 
     skills = {
         path.parent.name

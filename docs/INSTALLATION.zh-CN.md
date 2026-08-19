@@ -43,12 +43,15 @@ C:\Users\<用户名>\plugins\binance-research-pro
 
 修改变量后完全重启 Codex。全部配置见 `packages/mcp/docs/ENVIRONMENT.zh-CN.md`。
 
+可选账户研究通过 `BINANCE_ACCOUNT_PROFILES_PATH` 指向仓库外受保护的 Ed25519 Profile 文件。不要把其中内容写入本仓库。按照 `ACCOUNT-ACCESS.zh-CN.md` 配置后完全重启应用。
+
 ## 4. 验收
 
 - 查询实时 Spot 市场比较；
 - 查询 USD-M 资金费率与基差；
 - 检查本地历史仓库状态；
-- 确认不存在账户与下单工具。
+- 调用 `account_profiles_status`；除非已主动添加受保护 Profile，否则应报告未配置；
+- 确认不存在下单、撤单、调整杠杆、转账或提现工具。
 
 以上通过后再删除旧的独立 `binance-analysis` 用户 MCP 配置，否则工具可能重复出现。
 

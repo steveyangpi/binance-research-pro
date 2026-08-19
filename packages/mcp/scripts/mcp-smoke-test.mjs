@@ -7,6 +7,7 @@ import {
 } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const expectedTools = [
+  'account_profiles_status',
   'analyze_futures',
   'analyze_indicators',
   'analyze_trend',
@@ -14,14 +15,18 @@ const expectedTools = [
   'exchange_info',
   'futures_candles',
   'futures_funding_rate',
+  'futures_income_history',
   'futures_mark_price',
   'futures_market_overview',
   'futures_open_interest',
+  'futures_open_orders',
   'futures_order_book_snapshot',
+  'futures_positions',
   'get_candles',
   'market_overview',
   'multi_timeframe_analysis',
   'order_book_snapshot',
+  'spot_account_overview',
   'warehouse_data_range',
   'warehouse_import_file',
   'warehouse_import_url',
@@ -73,6 +78,18 @@ try {
   }
   console.log(`Warehouse MCP call passed. Parquet root: ${warehouse.parquetRoot}`);
 
+  const accountStatus = await client.callTool({
+    name: 'account_profiles_status',
+    arguments: {},
+  });
+  if (accountStatus.isError) throw new Error('account_profiles_status returned an MCP tool error');
+  const accountStatusText = accountStatus.content.find((item) => item.type === 'text')?.text;
+  const accounts = accountStatusText === undefined ? undefined : JSON.parse(accountStatusText);
+  if (accounts?.configured !== false || !Array.isArray(accounts?.profiles)) {
+    throw new Error('account_profiles_status returned an unexpected default payload');
+  }
+  console.log('Account profile MCP call passed without configured credentials.');
+
   const toolsByName = new Map(response.tools.map((tool) => [tool.name, tool]));
   for (const tool of response.tools) {
     if (
@@ -84,11 +101,14 @@ try {
     }
   }
 
-  const publicReadTools = expectedTools.filter((name) => !name.startsWith('warehouse_'));
+  const publicReadTools = expectedTools.filter(
+    (name) => !name.startsWith('warehouse_') && name !== 'account_profiles_status',
+  );
   const localReadTools = expectedTools.filter(
     (name) =>
-      name.startsWith('warehouse_') &&
-      !['warehouse_import_file', 'warehouse_import_url'].includes(name),
+      name === 'account_profiles_status' ||
+      (name.startsWith('warehouse_') &&
+        !['warehouse_import_file', 'warehouse_import_url'].includes(name)),
   );
   for (const name of publicReadTools) {
     const annotations = toolsByName.get(name)?.annotations;

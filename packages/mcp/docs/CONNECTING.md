@@ -46,6 +46,8 @@ To move all runtime data to a chosen disk, add one variable:
 BINANCE_RESEARCH_DATA_DIR = "D:\\BinanceResearchPro"
 ```
 
+Optional read-only account research uses `BINANCE_ACCOUNT_PROFILES_PATH` to reference a protected Ed25519 profile file outside the repository. Follow the [account-access guide](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.md); do not place credential values directly in the MCP configuration.
+
 Codex Desktop, CLI, and IDE share the Codex MCP configuration. Start a new task or restart the client after changing it. Official reference: [OpenAI Codex MCP documentation](https://developers.openai.com/codex/mcp/).
 
 ## Other stdio MCP clients
@@ -89,6 +91,7 @@ npm run test:package
 1. `Call market_overview with symbol=BTCUSDT.`
 2. `Call analyze_futures with symbol=BTCUSDT, interval=1h, limit=200.`
 3. `Call warehouse_status and return dataDirectory, the Parquet root, and imported file count.`
+4. `Call account_profiles_status and report only configured profile IDs and allowed surfaces.`
 
 ## Troubleshooting
 
@@ -103,4 +106,4 @@ npm run test:package
 
 ## Security boundary
 
-The server neither reads nor requests `BINANCE_API_KEY` / `BINANCE_API_SECRET`, and has no account, trading, transfer, or withdrawal tools. Never put credentials in MCP configuration, environment variables, logs, or screenshots.
+Public market tools require no credentials. Optional account tools accept only externally configured Ed25519 USER_DATA profiles and remain read-only. The server provides no order placement, cancellation, leverage-change, transfer, or withdrawal tools. Never put credential values or private account responses in MCP configuration, logs, screenshots, source control, or CI.

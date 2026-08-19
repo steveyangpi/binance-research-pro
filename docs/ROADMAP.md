@@ -1,10 +1,11 @@
 # Roadmap
 
-## Current public-data product
+## Current research product
 
 - Codex plugin and private MCP source in one reviewed monorepo.
 - Portable, exact private-package launch without checkout paths.
-- Spot, USD-M Futures, local history, and risk-review Skills.
+- Spot, USD-M Futures, local history, risk-review, and optional read-only account Skills.
+- Isolated Ed25519 `USER_DATA` profiles for account reads, with no mutation endpoints.
 - In-memory/SQLite caching and DuckDB/Parquet historical storage.
 - Cross-platform data-root derivation, import-root confinement, and bounded HTTPS imports.
 - Deterministic MCP, package-consumer, and cross-deliverable validation.
@@ -20,4 +21,4 @@
 
 ## Explicitly separate future products
 
-Read-only account research, if ever needed, belongs in a different MCP with least-privilege secret storage. Trading belongs in another testnet-first service with preview, explicit confirmation, exchange-filter enforcement, idempotency, limits, and audit logs. Withdrawal capability remains out of scope.
+Trading belongs in another testnet-first service with preview, explicit confirmation, exchange-filter enforcement, idempotency, limits, and audit logs. It must not be enabled through an account-profile setting. Withdrawal capability remains out of scope.

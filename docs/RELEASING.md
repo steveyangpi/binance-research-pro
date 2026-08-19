@@ -20,7 +20,7 @@ The 14-digit Codex suffix is a UTC deployment revision, not another product vers
 ## Stage 1: publish and verify the private MCP package
 
 1. Choose the next `X.Y.Z`, update the root workspace and `packages/mcp` package versions, and regenerate the root lockfile with npm. Update implementation, tests, canonical Skills, package READMEs, and English/Simplified Chinese documentation together.
-2. Confirm `publishConfig` still targets `https://npm.pkg.github.com` with `access: restricted`. Do not add credentials, runtime data, public registry publication, account access, trading, transfers, or withdrawals.
+2. Confirm `publishConfig` still targets `https://npm.pkg.github.com` with `access: restricted`. Do not add credential values, private account responses, runtime data, public registry publication, trading, leverage changes, transfers, or withdrawals.
 3. Run:
 
 ```powershell
@@ -55,8 +55,10 @@ npm run plugin:release-check
 
 5. Reinstall the Personal Marketplace Plugin, fully restart Codex, and confirm:
    - public Spot and USD-M Futures reads work;
+   - `account_profiles_status` works without credentials and exposes only redacted profile metadata;
+   - authenticated account reads are tested manually with a local Ed25519 profile and never with credentials stored in CI;
    - warehouse status/read tools work, while imports remain explicit state-changing actions with an explicit source;
-   - no API key, account, balance, position, order, transfer, or withdrawal capability exists;
+   - no order placement, cancellation, leverage-change, transfer, or withdrawal capability exists;
    - market claims are timestamped and distinguish live data from the local warehouse;
    - MCP stdout remains clean JSON-RPC.
 6. Commit the complete final release state. Only after all prior checks and Codex acceptance pass, create and verify the immutable annotated release tag on that commit:

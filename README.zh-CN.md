@@ -7,7 +7,7 @@ Binance Research Pro 是一个私有 monorepo，包含两个共同演进的交�
 - 仓库根目录中的 Codex 插件；
 - `packages/mcp` 中可发布的 `@steveyangpi/binance-research-pro-mcp` stdio Server。
 
-项目研究 Binance Spot 与 USDⓈ-M Futures 公共市场数据，并提供可选的本地 DuckDB/Parquet 历史仓库。它不接受 Binance 凭据，不访问账户，也不提供下单、转账或提现能力。
+项目研究 Binance Spot 与 USDⓈ-M Futures 公共市场数据，提供可选的本地 DuckDB/Parquet 历史仓库，并可选择启用隔离的 Ed25519 `USER_DATA` Profile 进行只读账户研究。项目不提供下单、调整杠杆、转账或提现能力。
 
 ## 为什么合并仓库
 
@@ -32,7 +32,7 @@ docs/                           架构、开发、发布与安全文档
 - 运行已安装插件时，需要 `@steveyangpi` GitHub Packages 读取权限。
 - 实时研究需要能访问 Binance 公共端点。
 
-项目不接受 `BINANCE_API_KEY` 或 `BINANCE_API_SECRET`。
+公共研究不需要 Binance 凭据。可选账户读取使用仓库外受保护的 Profile 文件，详见[只读账户访问](docs/ACCOUNT-ACCESS.zh-CN.md)。不要把凭据粘贴到 ChatGPT、Codex、源码、日志或 Issue 中。
 
 ## 开发快速开始
 
@@ -55,6 +55,8 @@ npm run test:mcp:live
 ## 运行模型
 
 插件启动 [.mcp.json](.mcp.json) 中声明的固定私有包。`BINANCE_RESEARCH_DATA_DIR` 等可选宿主配置通过 `env_vars` 按名称转发，变量值只保留在各机器上。
+
+`BINANCE_ACCOUNT_PROFILES_PATH` 可以指向外部凭据文件，并声明多个隔离的 Spot 或 USDⓈ-M 只读 Profile。私有账户响应不会写入市场缓存或历史仓库。
 
 默认数据目录由操作系统决定。设置一个根目录即可整体迁移缓存和仓库：
 

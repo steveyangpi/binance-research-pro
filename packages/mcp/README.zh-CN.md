@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-这是一个 Binance Spot 和 USDⓈ-M Futures 市场分析 MCP Server。实时分析只调用公开市场数据接口，不要求 API Key，也不包含下单、转账或账户读取能力；历史数据可以导入本地 DuckDB/Parquet 仓库。
+这是一个 Binance Spot 和 USDⓈ-M Futures 研究 MCP Server。公共分析不要求 API Key；可选的隔离 Ed25519 `USER_DATA` Profile 可增加余额、仓位、挂单与收益历史的只读访问。历史数据可以导入本地 DuckDB/Parquet 仓库。项目不实现交易、调整杠杆、转账或提现操作。
 
 > 市场数据和技术指标仅供分析，不构成投资建议。数字资产价格可能剧烈波动，请自行验证数据、规则和风险。
 
@@ -43,6 +43,16 @@
 | `warehouse_query_candles` | 查询并按开盘时间去重的历史 K 线        |
 | `warehouse_data_range`    | 查询 K 线行数及最早/最晚时间           |
 
+### 可选只读账户工具
+
+| MCP 工具                  | 说明                                         |
+| ------------------------- | -------------------------------------------- |
+| `account_profiles_status` | 查看脱敏后的 Profile 元数据                  |
+| `spot_account_overview`   | 读取 Spot 余额                               |
+| `futures_positions`       | 读取 USDⓈ-M 仓位风险                         |
+| `futures_open_orders`     | 读取当前 USDⓈ-M 挂单                         |
+| `futures_income_history`  | 读取已实现盈亏、资金费、手续费和其他收益记录 |
+
 ## 快速开始
 
 需要 Node.js 22.13 或更高版本。访问私有 GitHub Packages 前，先配置 `@steveyangpi` registry，并使用有权读取该 restricted 包的账号完成认证：
@@ -53,7 +63,7 @@ npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.git
 npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.2 -- binance-research-pro-mcp
 ```
 
-该命令是 stdio server，会等待 MCP JSON-RPC 输入。它不接受 Binance 凭据，也不提供账户或交易操作。设置 `BINANCE_RESEARCH_DATA_DIR` 可迁移可选本地缓存与仓库；否则默认使用操作系统的用户应用数据目录。宿主配置和发布说明见仓库的[安装指南](../../docs/INSTALLATION.zh-CN.md)。
+该命令是 stdio server，会等待 MCP JSON-RPC 输入。未设置 `BINANCE_ACCOUNT_PROFILES_PATH` 时，账户工具返回“未配置”，公共工具和仓库工具仍可使用。凭据必须保存在仓库外受保护的文件中。设置 `BINANCE_RESEARCH_DATA_DIR` 可迁移本地缓存与仓库。详见仓库的[安装指南](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/INSTALLATION.zh-CN.md)和[账户访问指南](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.zh-CN.md)。
 
 从源码开发：
 
@@ -95,12 +105,13 @@ npm run test:mcp:live
 
 ## 示例提问
 
-专属 `Binance Research Pro` 插件通过 `.mcp.json` 和固定 npm 版本启动本服务，并提供 Spot、衍生品、历史数据和风险审查 Skills。第一阶段只使用无需 API Key 的公共市场数据，不读取账户、不下单。
+专属 `Binance Research Pro` 插件通过 `.mcp.json` 和固定 npm 版本启动本服务，并提供 Spot、衍生品、历史数据、账户研究和风险审查 Skills。账户研究必须显式配置只读 Profile，所有交易操作仍然排除在外。
 
 - 分析 BTCUSDT 最近 200 根 1 小时 K 线的趋势、RSI 和 MACD。
 - 比较 BTCUSDT、ETHUSDT 和 SOLUSDT 的 24 小时成交额与涨跌幅。
 - 读取 ETHUSDT 前 100 档盘口，说明价差和买卖盘失衡。
 - 使用标记价格、资金费率、持仓量和一小时指标分析 KORUUSDT 永续合约。
+- 结合当前标记价格、资金费、杠杆和强平距离审查已配置的 USDⓈ-M 仓位。
 - 将配置的导入目录中的 `BTCUSDT-1h-2025-01.zip` 作为 Binance Kline 导入 `candles` 数据集，然后查询时间范围。
 
 ## 数据来源

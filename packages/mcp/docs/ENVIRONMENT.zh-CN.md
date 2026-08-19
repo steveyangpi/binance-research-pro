@@ -33,6 +33,8 @@
 | `BINANCE_RESEARCH_DATA_DIR`        | 当前系统用户数据目录       | 所有状态数据的根目录。                   |
 | `BINANCE_REST_BASE_URL`            | `https://api.binance.com`  | Spot 公共 REST 根地址。                  |
 | `BINANCE_FUTURES_REST_BASE_URL`    | `https://fapi.binance.com` | USDⓈ-M Futures 公共 REST 根地址。        |
+| `BINANCE_ACCOUNT_PROFILES_PATH`    | 未设置                     | 外部 Ed25519 USER_DATA Profile 文件。    |
+| `BINANCE_ACCOUNT_RECV_WINDOW_MS`   | `5000`                     | 签名请求窗口，最大 60000 毫秒。          |
 | `BINANCE_REQUEST_TIMEOUT_MS`       | `10000`                    | HTTP 超时，最大 60000 毫秒。             |
 | `BINANCE_CACHE_TTL_MS`             | `15000`                    | ticker、标记价格、盘口、持仓量缓存时间。 |
 | `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | K 线缓存时间。                           |
@@ -77,6 +79,12 @@
 ```
 
 两个 Binance 端点覆盖值都必须使用 HTTPS。更换机器时可以省略路径覆盖，让新机器使用系统默认目录；也可以改成新机器的数据盘。路径变化不会自动迁移现有 SQLite 或 Parquet 文件。
+
+## 可选只读账户 Profile
+
+账户凭据不会直接写入 `.mcp.json` 或多个独立环境变量。只需将 `BINANCE_ACCOUNT_PROFILES_PATH` 指向仓库外受保护的 JSON 文件。该文件可以声明多个隔离的 Ed25519 Profile 以及各自允许的 `spot` 或 `usd-m-futures` 市场。详见仓库的[账户访问指南](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.zh-CN.md)。
+
+私有响应绕过公共响应缓存和历史仓库。修改 Profile 路径或凭据文件后必须完全重启宿主。
 
 ## 迁移现有数据
 

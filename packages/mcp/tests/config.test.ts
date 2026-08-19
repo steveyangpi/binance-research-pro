@@ -37,4 +37,16 @@ describe('loadConfig', () => {
       'Only HTTPS Binance endpoints are allowed.',
     );
   });
+
+  it('accepts an external account profile path and bounds recvWindow', () => {
+    const profilesPath = resolve('protected', 'binance-account-profiles.json');
+    const config = loadConfig({
+      BINANCE_ACCOUNT_PROFILES_PATH: profilesPath,
+      BINANCE_ACCOUNT_RECV_WINDOW_MS: '4000',
+    });
+
+    expect(config.BINANCE_ACCOUNT_PROFILES_PATH).toBe(profilesPath);
+    expect(config.BINANCE_ACCOUNT_RECV_WINDOW_MS).toBe(4000);
+    expect(() => loadConfig({ BINANCE_ACCOUNT_RECV_WINDOW_MS: '60001' })).toThrow();
+  });
 });

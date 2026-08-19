@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-A Binance Spot and USD-M Futures market-analysis MCP server. Live analysis uses public endpoints only, requires no API key, and has no order, transfer, or account-reading capability. Historical files can be imported into a local DuckDB/Parquet warehouse.
+A Binance Spot and USD-M Futures research MCP server. Public analysis requires no API key; optional isolated Ed25519 `USER_DATA` profiles add read-only balances, positions, open orders, and income history. Historical files can be imported into a local DuckDB/Parquet warehouse. No trading, leverage-change, transfer, or withdrawal action is implemented.
 
 > Market data and technical indicators are for analysis only and are not investment advice. Digital-asset prices can be highly volatile; verify the data, rules, and risks independently.
 
@@ -43,6 +43,16 @@ A Binance Spot and USD-M Futures market-analysis MCP server. Live analysis uses 
 | `warehouse_query_candles` | Query deduplicated historical Klines                      |
 | `warehouse_data_range`    | Get Kline row count and earliest/latest open time         |
 
+### Optional read-only account tools
+
+| MCP tool                  | Description                                                |
+| ------------------------- | ---------------------------------------------------------- |
+| `account_profiles_status` | List redacted configured profile metadata                  |
+| `spot_account_overview`   | Read Spot balances                                         |
+| `futures_positions`       | Read USD-M position risk                                   |
+| `futures_open_orders`     | Read current USD-M open orders                             |
+| `futures_income_history`  | Read realized PnL, funding, commission, and income records |
+
 ## Quick start
 
 Requires Node.js 22.13 or later. For private GitHub Packages access, configure the `@steveyangpi` registry and authenticate with an account authorized to read this restricted package before running the server:
@@ -53,7 +63,7 @@ npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.git
 npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.2 -- binance-research-pro-mcp
 ```
 
-The command is a stdio server and waits for MCP JSON-RPC input. It accepts no Binance credentials and exposes no account or trading actions. Set `BINANCE_RESEARCH_DATA_DIR` to move its optional local cache and warehouse; otherwise it uses the operating system's per-user application-data directory. See the repository's [installation guide](../../docs/INSTALLATION.md) for host setup and release guidance.
+The command is a stdio server and waits for MCP JSON-RPC input. Without `BINANCE_ACCOUNT_PROFILES_PATH`, account tools report an unconfigured state while public and warehouse tools remain available. Credentials must stay in a protected external file. Set `BINANCE_RESEARCH_DATA_DIR` to move the optional local cache and warehouse. See the repository's [installation guide](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/INSTALLATION.md) and [account-access guide](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.md).
 
 Develop from source:
 
@@ -99,6 +109,7 @@ The server transports MCP messages over stdin/stdout, so application logs must n
 - Compare BTCUSDT, ETHUSDT, and SOLUSDT by 24-hour quote volume and price change.
 - Inspect the first 100 ETHUSDT order-book levels and explain the spread and imbalance.
 - Analyze the KORUUSDT perpetual contract using mark price, funding, open interest, and one-hour indicators.
+- Review configured USD-M positions against current mark prices, funding, leverage, and liquidation distance.
 - Import `BTCUSDT-1h-2025-01.zip` from the configured import directory as Binance Klines and inspect its data range.
 
 ## Data source

@@ -20,6 +20,8 @@ npm run test:mcp:live
 
 This calls Binance public endpoints. Record the endpoint, time, and regional/network limitations when reporting a failure. It is intentionally excluded from offline CI.
 
+Authenticated live tests are separate and manual. Use a newly created read-only Ed25519 profile outside the repository. Never place its files or values in CI. Start with `account_profiles_status`, then call only the surface-specific read that the profile declares.
+
 ## Plugin acceptance
 
 - Spot single-symbol and multi-symbol prompts select the intended tools.
@@ -28,6 +30,8 @@ This calls Binance public endpoints. Record the endpoint, time, and regional/net
 - Historical research checks warehouse coverage before querying or importing.
 - Imports are treated as state-changing and require an explicit source.
 - Responses report freshness and limitations.
-- Account and trading requests are clearly unsupported.
+- Account tools remain discoverable without credentials and report an unconfigured status safely.
+- Configured account reads select the intended profile and private responses are not cached.
+- Trading, cancellation, leverage-change, transfer, and withdrawal requests are clearly unsupported.
 
 Before stage-two release, `npm run plugin:release-check` must also prove that `.mcp.json` pins the current source package version.

@@ -20,7 +20,7 @@ Binance Research Pro 先发布私有 MCP 包，再发布固定该包版本的 Co
 ## 阶段一：发布并验证私有 MCP 包
 
 1. 选择下一个 `X.Y.Z`，更新根 workspace 与 `packages/mcp` 包版本，并使用 npm 重新生成根 lockfile。同步更新实现、测试、canonical Skills、包 README，以及英文与简体中文文档。
-2. 确认 `publishConfig` 仍指向 `https://npm.pkg.github.com` 且 `access: restricted`。不得加入凭据、运行数据、公开 registry 发布、账户访问、交易、转账或提现能力。
+2. 确认 `publishConfig` 仍指向 `https://npm.pkg.github.com` 且 `access: restricted`。不得加入凭据值、私有账户响应、运行数据、公开 registry 发布、交易、杠杆调整、转账或提现能力。
 3. 运行：
 
 ```powershell
@@ -55,8 +55,10 @@ npm run plugin:release-check
 
 5. 从 Personal Marketplace 重装 Plugin，完全重启 Codex，并确认：
    - 公共 Spot 与 USD-M Futures 读取正常；
+   - `account_profiles_status` 在未配置凭据时正常工作，并且只暴露脱敏后的 profile 元数据；
+   - 账户读取仅使用本地 Ed25519 profile 手工验证，CI 中绝不保存凭据；
    - warehouse 状态/读取工具正常，而导入仍是需要显式来源的状态变更操作；
-   - 不存在 API key、账户、余额、仓位、订单、转账或提现能力；
+   - 不存在下单、撤单、杠杆调整、转账或提现能力；
    - 市场结论有时间戳，并区分实时数据与本地 warehouse；
    - MCP stdout 保持为干净的 JSON-RPC。
 6. 提交完整的最终 release 状态。仅在此前检查和 Codex 验收全部通过后，才在该 commit 创建并验证不可变 annotated release tag：

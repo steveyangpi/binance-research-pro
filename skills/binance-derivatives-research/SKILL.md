@@ -5,7 +5,7 @@ description: Research Binance USD-M perpetual futures using public market data. 
 
 # Binance USD-M Futures Research
 
-Use the bundled public-data tools. No account or API-key capability exists in this phase.
+Use the bundled public-data tools for market research. Account-specific reads belong to the separate `binance-account-research` skill and require an explicitly selected local Ed25519 profile.
 
 ## Workflow
 

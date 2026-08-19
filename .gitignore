@@ -22,3 +22,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*account-profiles*.json
+*passphrase*.txt

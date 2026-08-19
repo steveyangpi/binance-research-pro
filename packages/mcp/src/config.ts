@@ -11,6 +11,8 @@ const httpsUrl = z
 const environmentSchema = z.object({
   BINANCE_REST_BASE_URL: httpsUrl.default('https://api.binance.com'),
   BINANCE_FUTURES_REST_BASE_URL: httpsUrl.default('https://fapi.binance.com'),
+  BINANCE_ACCOUNT_PROFILES_PATH: z.string().trim().min(1).optional(),
+  BINANCE_ACCOUNT_RECV_WINDOW_MS: z.coerce.number().int().positive().max(60_000).default(5_000),
   BINANCE_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(10_000),
   BINANCE_CACHE_TTL_MS: z.coerce.number().int().nonnegative().max(60_000).default(15_000),
   BINANCE_CANDLE_CACHE_TTL_MS: z.coerce.number().int().nonnegative().max(3_600_000).default(60_000),

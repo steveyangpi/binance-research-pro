@@ -46,6 +46,8 @@ enabled = true
 BINANCE_RESEARCH_DATA_DIR = "D:\\BinanceResearchPro"
 ```
 
+可选只读账户研究通过 `BINANCE_ACCOUNT_PROFILES_PATH` 引用仓库外受保护的 Ed25519 Profile 文件。请按照[账户访问指南](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.zh-CN.md)配置；不要把凭据值直接写入 MCP 配置。
+
 Codex Desktop、CLI 和 IDE 扩展共享 Codex MCP 配置。修改后新建任务或重启客户端，让它启动新进程。官方参考：[OpenAI Codex MCP 文档](https://developers.openai.com/codex/mcp/)。
 
 ## 其他 stdio MCP 客户端
@@ -89,6 +91,7 @@ npm run test:package
 1. `调用 market_overview，symbol=BTCUSDT。`
 2. `调用 analyze_futures，symbol=BTCUSDT，interval=1h，limit=200。`
 3. `调用 warehouse_status，返回 dataDirectory、Parquet 根目录和已导入文件数。`
+4. `调用 account_profiles_status，只报告已配置的 Profile ID 和允许的市场范围。`
 
 `warehouse_status.dataDirectory` 应等于显式配置的目录，或系统默认目录。
 
@@ -105,4 +108,4 @@ npm run test:package
 
 ## 安全边界
 
-项目不读取或要求 `BINANCE_API_KEY` / `BINANCE_API_SECRET`，也不提供账户、下单、转账或提现工具。不要将密钥放进 MCP 配置、环境变量、日志或截图。
+公共市场工具不需要凭据。可选账户工具只接受外部配置的 Ed25519 USER_DATA Profile，并保持只读。服务不提供下单、撤单、杠杆调整、转账或提现工具。不要把凭据值或私有账户响应放进 MCP 配置、日志、截图、源码或 CI。

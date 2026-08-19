@@ -7,7 +7,7 @@ Binance Research Pro is a private monorepo containing:
 - a Codex plugin at the repository root;
 - the publishable `@steveyangpi/binance-research-pro-mcp` stdio server in `packages/mcp`.
 
-The project researches Binance Spot and USD-M Futures public market data and maintains an optional local DuckDB/Parquet history warehouse. It has no Binance credentials, account access, order execution, transfer, or withdrawal capability.
+The project researches Binance Spot and USD-M Futures public market data, maintains an optional local DuckDB/Parquet history warehouse, and can opt into isolated Ed25519 `USER_DATA` profiles for read-only account research. It has no order execution, leverage-change, transfer, or withdrawal capability.
 
 ## Why one repository
 
@@ -30,9 +30,9 @@ docs/                           Architecture, development, release, and security
 - Node.js 22.13 or newer and npm.
 - Python 3 for the dependency-free plugin validator.
 - GitHub Packages read access for `@steveyangpi` when running the installed plugin.
-- Network access to Binance public endpoints for live research.
+- Network access to Binance endpoints used by the selected public or read-only account research.
 
-No `BINANCE_API_KEY` or `BINANCE_API_SECRET` is accepted.
+Public research needs no Binance credential. Optional account reads use a protected profile file outside the repository; see [Read-only account access](docs/ACCOUNT-ACCESS.md). Never paste credentials into ChatGPT, Codex, source files, logs, or issues.
 
 ## Development quick start
 
@@ -55,6 +55,8 @@ npm run test:mcp:live
 ## Runtime model
 
 The plugin launches the fixed private package declared in [.mcp.json](.mcp.json). Optional host settings such as `BINANCE_RESEARCH_DATA_DIR` are forwarded by name through `env_vars`; their values stay on each host.
+
+`BINANCE_ACCOUNT_PROFILES_PATH` can point to an external credentials file containing multiple isolated Spot or USD-M read-only profiles. Private account responses are never written to the market cache or historical warehouse.
 
 Default data locations are OS-specific. Set one root to move all cache and warehouse state:
 

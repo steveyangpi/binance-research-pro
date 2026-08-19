@@ -33,6 +33,8 @@ Set `BINANCE_RESEARCH_DATA_DIR` to move the complete layout. `warehouse_status` 
 | `BINANCE_RESEARCH_DATA_DIR`        | OS user data directory     | Root for all stateful data.                       |
 | `BINANCE_REST_BASE_URL`            | `https://api.binance.com`  | Public Spot REST base URL.                        |
 | `BINANCE_FUTURES_REST_BASE_URL`    | `https://fapi.binance.com` | Public USDⓈ-M Futures REST base URL.              |
+| `BINANCE_ACCOUNT_PROFILES_PATH`    | unset                      | External Ed25519 USER_DATA profile file.          |
+| `BINANCE_ACCOUNT_RECV_WINDOW_MS`   | `5000`                     | Signed-request window, maximum 60000 ms.          |
 | `BINANCE_REQUEST_TIMEOUT_MS`       | `10000`                    | HTTP timeout, up to 60000 ms.                     |
 | `BINANCE_CACHE_TTL_MS`             | `15000`                    | Ticker, mark price, book, and open-interest TTL.  |
 | `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | Candle TTL.                                       |
@@ -77,6 +79,12 @@ The plugin needs no `env` by default. To keep using an existing data disk, confi
 ```
 
 Both Binance endpoint overrides must use HTTPS. On another machine, omit the path override for OS defaults or set it to that host's data disk. Path changes do not migrate existing SQLite or Parquet files automatically.
+
+## Optional read-only account profiles
+
+Account credentials are not stored directly in `.mcp.json` or individual environment variables. Set only `BINANCE_ACCOUNT_PROFILES_PATH` to a protected JSON file outside the repository. The file can declare multiple isolated Ed25519 profiles and their allowed `spot` or `usd-m-futures` surfaces. See the repository [account-access guide](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.md).
+
+Private responses bypass the public response cache and historical warehouse. Fully restart the host after changing the profile path or credential files.
 
 ## Migrating existing data
 

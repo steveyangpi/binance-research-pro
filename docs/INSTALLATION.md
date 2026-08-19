@@ -43,12 +43,15 @@ Never register `packages/mcp` as the plugin source. The manifest lives at the re
 
 Fully restart Codex after changing variables. See `packages/mcp/docs/ENVIRONMENT.md` for all settings.
 
+Optional account research uses `BINANCE_ACCOUNT_PROFILES_PATH` and an external protected Ed25519 profile file. Never put its values in this repository. Follow `ACCOUNT-ACCESS.md` and restart the app after configuration.
+
 ## 4. Acceptance checks
 
 - request a current Spot comparison;
 - request a USD-M funding/basis summary;
 - inspect local warehouse status;
-- confirm no account or order tools are present.
+- call `account_profiles_status`; it should report unconfigured unless a protected profile was intentionally added;
+- confirm no order placement, cancellation, leverage-change, transfer, or withdrawal tool is present.
 
 Remove any legacy standalone `binance-analysis` user MCP entry only after these checks pass, otherwise tools may appear twice.
 

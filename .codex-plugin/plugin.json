@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "Binance Research Pro",
     "shortDescription": "Private Binance market and derivatives research.",
-    "longDescription": "Research Binance Spot and USD-M Futures with public market data, deterministic indicators, multi-timeframe workflows, order-book analysis, and a local DuckDB/Parquet history warehouse. No API key, account access, or trading actions are included.",
+    "longDescription": "Research Binance Spot and USD-M Futures with public market data, deterministic indicators, multi-timeframe workflows, a local DuckDB/Parquet warehouse, and optional isolated Ed25519 USER_DATA account reads. No trading, leverage-change, transfer, or withdrawal actions are included.",
     "developerName": "Sai",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Read", "Local data"],
