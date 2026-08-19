@@ -14,7 +14,7 @@
 Plugins and cross-machine deployments should use a fixed version instead of a source-tree path:
 
 ```powershell
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.2 -- binance-research-pro-mcp
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
 ```
 
 npx downloads and caches the private package on first launch. Configure the `@steveyangpi` GitHub Packages registry and authentication first. Upgrades are explicit version changes and must be revalidated.
@@ -22,7 +22,7 @@ npx downloads and caches the private package on first launch. Configure the `@st
 Register it as a standalone Codex MCP only when the plugin is not installed:
 
 ```powershell
-codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.2 -- binance-research-pro-mcp
+codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
 codex mcp list
 ```
 
@@ -33,7 +33,7 @@ User-level `~/.codex/config.toml` example:
 ```toml
 [mcp_servers.binance-research-pro]
 command = "npx"
-args = ["-y", "--package=@steveyangpi/binance-research-pro-mcp@0.3.2", "--", "binance-research-pro-mcp"]
+args = ["-y", "--package=@steveyangpi/binance-research-pro-mcp@0.4.3", "--", "binance-research-pro-mcp"]
 startup_timeout_sec = 60
 tool_timeout_sec = 30
 enabled = true
@@ -59,7 +59,7 @@ Codex Desktop, CLI, and IDE share the Codex MCP configuration. Start a new task 
       "command": "npx",
       "args": [
         "-y",
-        "--package=@steveyangpi/binance-research-pro-mcp@0.3.2",
+        "--package=@steveyangpi/binance-research-pro-mcp@0.4.3",
         "--",
         "binance-research-pro-mcp"
       ],

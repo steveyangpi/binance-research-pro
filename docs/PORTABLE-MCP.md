@@ -7,7 +7,7 @@ The installed plugin launches an immutable private package, not a repository fil
   "command": "npx",
   "args": [
     "-y",
-    "--package=@steveyangpi/binance-research-pro-mcp@0.3.2",
+    "--package=@steveyangpi/binance-research-pro-mcp@0.4.3",
     "--",
     "binance-research-pro-mcp"
   ]

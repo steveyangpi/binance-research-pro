@@ -12,7 +12,7 @@ npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.git
 用户名填写 GitHub 用户名，密码使用带 `read:packages` 权限的 classic PAT；因为包是私有的，账号还需具备仓库读取权限。验证 `.mcp.json` 当前固定的包：
 
 ```powershell
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.3.2 -- binance-research-pro-mcp
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
 ```
 
 这是 stdio Server，正常情况下会静默等待 JSON-RPC 输入，可按 Ctrl+C 停止。
