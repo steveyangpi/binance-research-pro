@@ -1,13 +1,18 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import packageMetadata from '../package.json' with { type: 'json' };
 
+const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+const publishedVersion = process.env.MCP_PUBLISHED_VERSION;
+if (!publishedVersion || !exactVersion.test(publishedVersion)) {
+  throw new Error('MCP_PUBLISHED_VERSION must be an exact SemVer package version.');
+}
+
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
-const temporaryRoot = mkdtempSync(join(tmpdir(), 'binance-research-pro-package-'));
-const packageDirectory = join(temporaryRoot, 'package');
+const temporaryRoot = mkdtempSync(join(tmpdir(), 'binance-research-pro-published-'));
 const consumerDirectory = join(temporaryRoot, 'consumer');
 const runtimeDataDirectory = join(temporaryRoot, 'runtime-data');
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -41,37 +46,42 @@ function run(command, args, options = {}) {
 function runNpm(args, options = {}) {
   if (npmCliPath) return run(process.execPath, [npmCliPath, ...args], options);
   if (process.platform === 'win32') {
-    throw new Error('Unable to locate npm-cli.js for a shell-free package smoke test.');
+    throw new Error('Unable to locate npm-cli.js for a shell-free published-package smoke test.');
   }
   return run(npmCommand, args, options);
 }
 
 try {
-  mkdirSync(packageDirectory, { recursive: true });
   mkdirSync(consumerDirectory, { recursive: true });
   writeFileSync(
     join(consumerDirectory, 'package.json'),
-    JSON.stringify({ name: 'binance-research-pro-package-smoke', private: true }, null, 2),
+    JSON.stringify({ name: 'binance-research-pro-published-smoke', private: true }, null, 2),
   );
 
-  const packOutput = runNpm(
-    ['pack', '--json', '--ignore-scripts', '--pack-destination', packageDirectory],
-    { cwd: projectRoot },
-  );
-  const packed = JSON.parse(packOutput);
-  const tarballPath = join(packageDirectory, packed[0].filename);
-  if (!existsSync(tarballPath)) throw new Error(`npm pack did not create ${tarballPath}`);
-
-  runNpm(['install', '--ignore-scripts', '--no-audit', '--no-fund', tarballPath], {
+  const packageSpec = `${packageMetadata.name}@${publishedVersion}`;
+  runNpm(['install', '--ignore-scripts', '--no-audit', '--no-fund', packageSpec], {
     cwd: consumerDirectory,
+    env: {
+      ...process.env,
+      npm_config_cache: join(temporaryRoot, 'npm-cache'),
+    },
   });
-  const installedEntry = join(
+
+  const installedPackageRoot = join(
     consumerDirectory,
     'node_modules',
     ...packageMetadata.name.split('/'),
-    'dist',
-    'index.js',
   );
+  const installedMetadata = JSON.parse(
+    readFileSync(join(installedPackageRoot, 'package.json'), 'utf8'),
+  );
+  if (installedMetadata.version !== publishedVersion) {
+    throw new Error(
+      `Installed package version ${installedMetadata.version} does not match ${publishedVersion}.`,
+    );
+  }
+
+  const installedEntry = join(installedPackageRoot, 'dist', 'index.js');
   const installedCli = join(
     consumerDirectory,
     'node_modules',
@@ -79,7 +89,9 @@ try {
     process.platform === 'win32' ? 'binance-research-pro-mcp.cmd' : 'binance-research-pro-mcp',
   );
   for (const requiredPath of [installedEntry, installedCli]) {
-    if (!existsSync(requiredPath)) throw new Error(`Packed package is missing ${requiredPath}`);
+    if (!existsSync(requiredPath)) {
+      throw new Error(`Published package is missing ${requiredPath}`);
+    }
   }
 
   const smokeEnvironment = {
@@ -106,10 +118,10 @@ try {
   const expectedMetadataPath = join(runtimeDataDirectory, 'warehouse', 'metadata.sqlite');
   if (!existsSync(expectedMetadataPath)) {
     throw new Error(
-      `Installed MCP did not create its metadata database at ${expectedMetadataPath}`,
+      `Published MCP did not create its metadata database at ${expectedMetadataPath}`,
     );
   }
-  console.log(`Package smoke test passed: ${packed[0].filename}`);
+  console.log(`Published package smoke test passed: ${packageSpec}`);
 } finally {
   const resolvedTemporaryRoot = dirname(join(temporaryRoot, 'safety-check'));
   if (resolvedTemporaryRoot === temporaryRoot && temporaryRoot.startsWith(tmpdir())) {

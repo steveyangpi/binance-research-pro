@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: publish-private-mcp
@@ -19,6 +18,9 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -46,16 +48,29 @@ jobs:
       - run: npm publish --workspace packages/mcp
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Smoke-test the published package
+
+  verify-published:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: '@steveyangpi'
+      - run: npm ci --ignore-scripts
+      - name: Install and smoke-test the published package
         env:
-          MCP_TEST_COMMAND: npx
-          MCP_TEST_ARGS_JSON: '["-y", "--package=@steveyangpi/binance-research-pro-mcp@${{ inputs.version }}", "--", "binance-research-pro-mcp"]'
-          BINANCE_RESEARCH_DATA_DIR: ${{ runner.temp }}/binance-research-pro-data
-          npm_config_cache: ${{ runner.temp }}/npm-cache
+          MCP_PUBLISHED_VERSION: ${{ inputs.version }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for attempt in 1 2 3 4 5; do
-            if node packages/mcp/scripts/mcp-smoke-test.mjs; then
+            if node packages/mcp/scripts/published-package-smoke-test.mjs; then
               exit 0
             fi
             if [ "$attempt" -eq 5 ]; then

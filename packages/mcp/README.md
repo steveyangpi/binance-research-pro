@@ -53,6 +53,8 @@ A Binance Spot and USD-M Futures research MCP server. Public analysis requires n
 | `futures_open_orders`     | Read current USD-M open orders                             |
 | `futures_income_history`  | Read realized PnL, funding, commission, and income records |
 
+Private monetary values and identifiers are returned as strings to preserve exact Binance decimal and integer representations. Signed account requests are restricted to documented Binance origins and never follow redirects.
+
 ## Quick start
 
 Requires Node.js 22.13 or later. For private GitHub Packages access, configure the `@steveyangpi` registry and authenticate with an account authorized to read this restricted package before running the server:

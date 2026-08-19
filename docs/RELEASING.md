@@ -31,14 +31,14 @@ npm pack --workspace packages/mcp --dry-run
 ```
 
 4. Inspect the pack output: it must contain no secrets, local warehouse/runtime data, or monorepo-only files.
-5. From an authorized GitHub Packages publishing environment, run the manual **Publish private MCP package** workflow. GitHub Packages versions are immutable; preflight must reject an existing version.
-6. In a clean, authenticated consumer environment, install and start the exact published package using the same command shape as `.mcp.json`:
+5. From an authorized GitHub Packages publishing environment, run the manual **Publish private MCP package** workflow. GitHub Packages versions are immutable; preflight must reject an existing version. The workflow publishes in a `packages: write` job, then verifies the exact registry artifact in a separate `packages: read` job.
+6. Confirm the `verify-published` job installs the package into an isolated temporary consumer with lifecycle scripts disabled, removes registry credentials, and starts the absolute installed CLI successfully. An additional clean, authenticated host can validate the same command shape as `.mcp.json`:
 
 ```powershell
 npx -y --package=@steveyangpi/binance-research-pro-mcp@X.Y.Z -- binance-research-pro-mcp
 ```
 
-Record a successful CLI/MCP stdio handshake before proceeding. Stage 2 is blocked until this check passes.
+Record a successful CLI/MCP stdio handshake from the workflow before proceeding. Stage 2 is blocked until this check passes.
 
 At this point `.mcp.json` may still pin the previous package. This is expected and keeps installed Plugins working during publication.
 

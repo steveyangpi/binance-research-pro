@@ -9,6 +9,7 @@ Binance Research Pro is a private monorepo. The repository root is a Codex plugi
 - Use public Spot/USD-M data plus explicitly configured Ed25519 `USER_DATA` profiles for account reads.
 - Never add order placement, cancellation, leverage changes, transfers, or withdrawals.
 - Never commit or expose API keys, private keys, passphrases, signatures, account profile contents, or private responses.
+- Restrict signed requests to trusted Binance origins, reject redirects, and preserve private decimals and identifiers as lossless strings.
 - Keep market claims timestamped and distinguish live API data from the local warehouse.
 - Warehouse imports are state-changing. Reads are the default; imports require an explicit source.
 

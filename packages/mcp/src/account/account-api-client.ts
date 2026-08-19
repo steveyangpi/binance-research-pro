@@ -1,10 +1,27 @@
+import JSONbig from 'json-bigint';
 import type { AppConfig } from '../config.js';
-import type {
-  AccountProfile,
-  AccountProfileStore,
-  AccountSurface,
+import {
+  AccountConfigurationError,
+  type AccountProfile,
+  type AccountProfileStore,
+  type AccountSurface,
 } from './account-profile-store.js';
 import { Ed25519Signer } from './ed25519-signer.js';
+
+const losslessJson = JSONbig({ storeAsString: true });
+
+const trustedAccountOrigins: Record<AccountSurface, ReadonlySet<string>> = {
+  spot: new Set([
+    'https://api.binance.com',
+    'https://api-gcp.binance.com',
+    'https://api1.binance.com',
+    'https://api2.binance.com',
+    'https://api3.binance.com',
+    'https://api4.binance.com',
+    'https://testnet.binance.vision',
+  ]),
+  'usd-m-futures': new Set(['https://fapi.binance.com', 'https://demo-fapi.binance.com']),
+};
 
 type QueryValue = string | number | undefined;
 
@@ -51,6 +68,7 @@ export class AccountApiClient {
     query: Record<string, QueryValue>,
     allowTimeRetry: boolean,
   ): Promise<T> {
+    const baseUrl = this.baseUrl(surface);
     const params = new URLSearchParams();
     for (const [name, value] of Object.entries(query)) {
       if (value !== undefined) params.set(name, String(value));
@@ -60,7 +78,7 @@ export class AccountApiClient {
 
     const signer = await this.signer(profile);
     const signature = signer.sign(params.toString());
-    const url = new URL(path, this.baseUrl(surface));
+    const url = new URL(path, baseUrl);
     url.search = params.toString();
     url.searchParams.set('signature', signature);
 
@@ -69,6 +87,7 @@ export class AccountApiClient {
     try {
       const response = await fetch(url, {
         headers: { 'X-MBX-APIKEY': profile.apiKey },
+        redirect: 'error',
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -79,7 +98,15 @@ export class AccountApiClient {
         }
         throw error;
       }
-      return (await response.json()) as T;
+      const body = await response.text();
+      try {
+        return losslessJson.parse(body) as T;
+      } catch {
+        throw new BinanceAccountApiError(
+          `Binance ${surface} account API returned an invalid JSON response.`,
+          response.status,
+        );
+      }
     } catch (error) {
       if (error instanceof BinanceAccountApiError) throw error;
       throw new BinanceAccountApiError(`Unable to reach the Binance ${surface} account API.`);
@@ -103,6 +130,7 @@ export class AccountApiClient {
     const timeout = setTimeout(() => controller.abort(), this.config.BINANCE_REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(new URL(this.timePath(surface), this.baseUrl(surface)), {
+        redirect: 'error',
         signal: controller.signal,
       });
       if (!response.ok) throw new Error('time request failed');
@@ -118,9 +146,21 @@ export class AccountApiClient {
   }
 
   private baseUrl(surface: AccountSurface): string {
-    return surface === 'spot'
-      ? this.config.BINANCE_REST_BASE_URL
-      : this.config.BINANCE_FUTURES_REST_BASE_URL;
+    const configured =
+      surface === 'spot'
+        ? this.config.BINANCE_REST_BASE_URL
+        : this.config.BINANCE_FUTURES_REST_BASE_URL;
+    const endpoint = new URL(configured);
+    if (
+      endpoint.username !== '' ||
+      endpoint.password !== '' ||
+      !trustedAccountOrigins[surface].has(endpoint.origin)
+    ) {
+      throw new AccountConfigurationError(
+        `Private account requests for ${surface} require a trusted Binance API origin.`,
+      );
+    }
+    return endpoint.origin;
   }
 
   private timePath(surface: AccountSurface): string {

@@ -2,7 +2,47 @@ import { z } from 'zod';
 import type { AccountApiClient } from '../account/account-api-client.js';
 import type { AccountProfileStore } from '../account/account-profile-store.js';
 
-const numericString = z.string().refine((value) => Number.isFinite(Number(value)));
+const numericString = z
+  .string()
+  .max(128)
+  .regex(/^-?\d+(?:\.\d+)?$/);
+const integerIdentifier = z.union([
+  z.number().int().safe(),
+  z
+    .string()
+    .max(128)
+    .regex(/^-?\d+$/),
+]);
+
+function decimalParts(value: string): { units: bigint; scale: number } {
+  const negative = value.startsWith('-');
+  const unsigned = negative ? value.slice(1) : value;
+  const [integer = '0', fraction = ''] = unsigned.split('.');
+  const units = BigInt(`${integer}${fraction}`);
+  return { units: negative ? -units : units, scale: fraction.length };
+}
+
+function formatDecimal(units: bigint, scale: number): string {
+  const negative = units < 0n;
+  const digits = (negative ? -units : units).toString().padStart(scale + 1, '0');
+  if (scale === 0) return `${negative ? '-' : ''}${digits}`;
+  const integer = digits.slice(0, -scale);
+  const fraction = digits.slice(-scale);
+  return `${negative ? '-' : ''}${integer}.${fraction}`;
+}
+
+function addDecimals(left: string, right: string): string {
+  const first = decimalParts(left);
+  const second = decimalParts(right);
+  const scale = Math.max(first.scale, second.scale);
+  const firstUnits = first.units * 10n ** BigInt(scale - first.scale);
+  const secondUnits = second.units * 10n ** BigInt(scale - second.scale);
+  return formatDecimal(firstUnits + secondUnits, scale);
+}
+
+function isZeroDecimal(value: string): boolean {
+  return decimalParts(value).units === 0n;
+}
 
 const spotAccountSchema = z
   .object({
@@ -39,7 +79,7 @@ const futuresPositionSchema = z
 const futuresOrderSchema = z
   .object({
     symbol: z.string(),
-    orderId: z.number(),
+    orderId: integerIdentifier,
     clientOrderId: z.string(),
     price: numericString,
     origQty: numericString,
@@ -65,8 +105,8 @@ const futuresIncomeSchema = z
     asset: z.string(),
     info: z.string(),
     time: z.number(),
-    tranId: z.union([z.number(), z.string()]),
-    tradeId: z.union([z.number(), z.string()]).optional(),
+    tranId: integerIdentifier,
+    tradeId: integerIdentifier.optional(),
   })
   .passthrough();
 
@@ -86,11 +126,11 @@ export class AccountReadService {
     const balances = account.balances
       .map((balance) => ({
         asset: balance.asset,
-        free: Number(balance.free),
-        locked: Number(balance.locked),
-        total: Number(balance.free) + Number(balance.locked),
+        free: balance.free,
+        locked: balance.locked,
+        total: addDecimals(balance.free, balance.locked),
       }))
-      .filter((balance) => includeZeroBalances || balance.total !== 0);
+      .filter((balance) => includeZeroBalances || !isZeroDecimal(balance.total));
     return {
       profileId: response.profileId,
       accountType: account.accountType ?? null,
@@ -112,22 +152,23 @@ export class AccountReadService {
       .map((position) => ({
         symbol: position.symbol,
         positionSide: position.positionSide,
-        positionAmount: Number(position.positionAmt),
-        entryPrice: Number(position.entryPrice),
-        breakEvenPrice:
-          position.breakEvenPrice === undefined ? null : Number(position.breakEvenPrice),
-        markPrice: Number(position.markPrice),
-        unrealizedProfit: Number(position.unRealizedProfit),
-        liquidationPrice: Number(position.liquidationPrice),
-        leverage: Number(position.leverage),
+        positionAmount: position.positionAmt,
+        entryPrice: position.entryPrice,
+        breakEvenPrice: position.breakEvenPrice ?? null,
+        markPrice: position.markPrice,
+        unrealizedProfit: position.unRealizedProfit,
+        liquidationPrice: position.liquidationPrice,
+        leverage: position.leverage,
         marginType: position.marginType,
-        isolatedMargin: Number(position.isolatedMargin),
-        notional: position.notional === undefined ? null : Number(position.notional),
+        isolatedMargin: position.isolatedMargin,
+        notional: position.notional ?? null,
         updateTime: position.updateTime,
       }));
     return {
       profileId: response.profileId,
-      positions: positions.filter((position) => includeFlat || position.positionAmount !== 0),
+      positions: positions.filter(
+        (position) => includeFlat || !isZeroDecimal(position.positionAmount),
+      ),
     };
   }
 
@@ -143,17 +184,17 @@ export class AccountReadService {
       .parse(response.data)
       .map((order) => ({
         symbol: order.symbol,
-        orderId: order.orderId,
+        orderId: String(order.orderId),
         clientOrderId: order.clientOrderId,
         side: order.side,
         positionSide: order.positionSide,
         type: order.type,
         status: order.status,
         timeInForce: order.timeInForce,
-        price: Number(order.price),
-        originalQuantity: Number(order.origQty),
-        executedQuantity: Number(order.executedQty),
-        stopPrice: Number(order.stopPrice),
+        price: order.price,
+        originalQuantity: order.origQty,
+        executedQuantity: order.executedQty,
+        stopPrice: order.stopPrice,
         reduceOnly: order.reduceOnly,
         closePosition: order.closePosition,
         time: order.time,
@@ -195,7 +236,7 @@ export class AccountReadService {
       .map((entry) => ({
         symbol: entry.symbol,
         incomeType: entry.incomeType,
-        income: Number(entry.income),
+        income: entry.income,
         asset: entry.asset,
         info: entry.info,
         time: entry.time,

@@ -84,6 +84,7 @@ npm run test:package
 
 - `test:mcp` 从当前 `dist` 启动真实 MCP 客户端，验证 initialize、工具清单和仓库状态。
 - `test:package` 执行 `npm pack`，在临时消费者项目中安装 tarball，再从安装包启动并握手；这是发布前必须通过的检查。
+- 发布工作流会独立安装精确的 GitHub Packages 制品，清除 registry 凭据，再通过已安装 CLI 的绝对路径完成握手。
 - `test:mcp:live` 额外访问 Binance 公共接口。
 
 ## 验证请求

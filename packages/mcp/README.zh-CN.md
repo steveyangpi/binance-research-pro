@@ -53,6 +53,8 @@
 | `futures_open_orders`     | 读取当前 USDⓈ-M 挂单                         |
 | `futures_income_history`  | 读取已实现盈亏、资金费、手续费和其他收益记录 |
 
+私有账户金额与 ID 均以字符串返回，以无损保留 Binance 的十进制和整数表示。签名账户请求只允许文档列出的 Binance origin，并且不会跟随重定向。
+
 ## 快速开始
 
 需要 Node.js 22.13 或更高版本。访问私有 GitHub Packages 前，先配置 `@steveyangpi` registry，并使用有权读取该 restricted 包的账号完成认证：

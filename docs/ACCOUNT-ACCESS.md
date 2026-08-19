@@ -57,6 +57,10 @@ Fully restart ChatGPT/Codex Desktop after changing a forwarded environment varia
 
 `BINANCE_ACCOUNT_RECV_WINDOW_MS` defaults to `5000` and cannot exceed `60000`. Keep it at or below `5000` unless diagnosing a known latency issue. Error `-1021` triggers one server-time synchronization and one retry; authentication and permission errors are never retried with another profile.
 
+Signed account requests fail closed unless the configured endpoint uses an explicitly supported Binance origin. Spot account reads allow `api.binance.com`, `api-gcp.binance.com`, `api1` through `api4.binance.com`, and `testnet.binance.vision`; USD-M account reads allow `fapi.binance.com` and `demo-fapi.binance.com`. Redirects are rejected. Public market endpoint overrides remain available for advanced deployments, but an arbitrary HTTPS origin can never receive an account API key.
+
+Account monetary values, prices, quantities, PnL, and leverage are returned as decimal strings so JavaScript floating-point conversion cannot silently change them. Order, transaction, and trade identifiers are also returned as strings. Parse them with a decimal or arbitrary-precision library when doing arithmetic.
+
 ## Available reads
 
 - `account_profiles_status`: local, redacted configuration status.

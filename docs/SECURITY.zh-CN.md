@@ -10,14 +10,15 @@
 ## 供应链
 
 - 插件固定到一个明确的私有 MCP 版本。
-- GitHub Actions 仅通过手动工作流发布包。
+- GitHub Actions 仅通过手动工作流发布包；已发布包验证在独立的 `packages: read` Job 中运行。
 - GitHub Packages 凭据只保存在本机 npm 配置或 CI Secret 中，不能进入仓库。
 - Binance API Key、私钥、口令、Profile 文件、签名和私有响应不得进入仓库、CI、日志、fixture、snapshot、缓存或历史仓库。
 - MCP 包与插件分阶段发布；未发布的源码版本不能写入 `.mcp.json`。
 
 ## 网络与存储
 
-- Binance 端点覆盖值必须使用 HTTPS。
+- 公共 Binance 端点覆盖值必须使用 HTTPS；签名账户请求还必须命中明确的 Binance origin allowlist，并在发送 API Key 前拒绝重定向。
+- 私有 JSON 响应以无损方式保留长整型 ID 与十进制账户数据，不进行有损 JavaScript Number 转换。
 - 网络响应经过 Schema 校验；只有公共市场数据可以进入响应缓存，私有账户响应只存在于当前请求内存中。
 - Profile 选择会强制检查声明的市场范围；认证、权限和 IP 错误不会回退到其他 Profile。
 - 远程历史导入只允许 HTTPS，拒绝 URL 凭据与非公网目标，重新检查重定向，并限制时间和字节数。

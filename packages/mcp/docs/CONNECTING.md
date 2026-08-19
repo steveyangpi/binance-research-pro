@@ -84,6 +84,7 @@ npm run test:package
 
 - `test:mcp` launches a real MCP client against the current `dist` output.
 - `test:package` packs a tarball, installs it in an isolated consumer project, then launches and handshakes with the installed package. It must pass before publishing.
+- The publish workflow independently installs the exact GitHub Packages artifact, strips registry credentials, and handshakes through its absolute installed CLI path.
 - `test:mcp:live` additionally calls public Binance endpoints.
 
 ## Verification prompts

@@ -78,7 +78,7 @@ The plugin needs no `env` by default. To keep using an existing data disk, confi
 }
 ```
 
-Both Binance endpoint overrides must use HTTPS. On another machine, omit the path override for OS defaults or set it to that host's data disk. Path changes do not migrate existing SQLite or Parquet files automatically.
+Both Binance endpoint overrides must use HTTPS. Public tools may use a custom HTTPS endpoint, but signed account requests accept only the Binance origins listed in the account-access guide and reject redirects. On another machine, omit the path override for OS defaults or set it to that host's data disk. Path changes do not migrate existing SQLite or Parquet files automatically.
 
 ## Optional read-only account profiles
 

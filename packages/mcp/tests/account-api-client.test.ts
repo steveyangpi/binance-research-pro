@@ -16,7 +16,7 @@ afterEach(async () => {
   );
 });
 
-async function createFixture() {
+async function createFixture(environment: Record<string, string> = {}) {
   const root = await mkdtemp(join(tmpdir(), 'binance-account-client-'));
   temporaryRoots.push(root);
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -42,6 +42,7 @@ async function createFixture() {
   const config = loadConfig({
     BINANCE_ACCOUNT_PROFILES_PATH: profilesPath,
     BINANCE_PERSISTENT_CACHE_ENABLED: 'false',
+    ...environment,
   });
   return {
     apiKey,
@@ -72,6 +73,36 @@ describe('AccountApiClient', () => {
     ).toBe(true);
     expect((init.headers as Record<string, string>)['X-MBX-APIKEY']).toBe(fixture.apiKey);
     expect(input.toString()).not.toContain(fixture.apiKey);
+    expect(init.redirect).toBe('error');
+  });
+
+  it('refuses to send credentials to an arbitrary HTTPS origin', async () => {
+    const spotFixture = await createFixture({ BINANCE_REST_BASE_URL: 'https://example.com' });
+    const futuresFixture = await createFixture({
+      BINANCE_FUTURES_REST_BASE_URL: 'https://example.com',
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(spotFixture.client.get('spot', 'readonly', '/api/v3/account')).rejects.toThrow(
+      'trusted Binance API origin',
+    );
+    await expect(
+      futuresFixture.client.get('usd-m-futures', 'readonly', '/fapi/v3/positionRisk'),
+    ).rejects.toThrow('trusted Binance API origin');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('parses large integer identifiers without precision loss', async () => {
+    const fixture = await createFixture();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"orderId":9007199254740993}')));
+
+    const response = await fixture.client.get<{ orderId: string }>(
+      'spot',
+      'readonly',
+      '/api/v3/account',
+    );
+    expect(response.data.orderId).toBe('9007199254740993');
   });
 
   it('synchronizes server time and retries once after error -1021', async () => {

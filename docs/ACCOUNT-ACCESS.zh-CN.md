@@ -57,6 +57,10 @@ Windows 配置示例：
 
 `BINANCE_ACCOUNT_RECV_WINDOW_MS` 默认是 `5000`，最大 `60000`。除非明确诊断网络延迟，否则应保持不超过 `5000`。发生 `-1021` 时仅同步一次服务器时间并重试一次；认证和权限错误不会自动切换其他 Profile。
 
+签名账户请求采用 fail-closed：端点必须属于明确支持的 Binance origin。Spot 账户读取允许 `api.binance.com`、`api-gcp.binance.com`、`api1` 至 `api4.binance.com` 和 `testnet.binance.vision`；USDⓈ-M 账户读取允许 `fapi.binance.com` 与 `demo-fapi.binance.com`。签名请求拒绝重定向。公共行情仍可在高级部署中覆盖端点，但任意 HTTPS 主机都无法接收账户 API Key。
+
+账户金额、价格、数量、盈亏和杠杆均以十进制字符串返回，避免 JavaScript 浮点转换静默修改数据。订单、流水和成交 ID 也统一返回字符串；需要运算时应使用十进制或任意精度库。
+
 ## 可用读取工具
 
 - `account_profiles_status`：本地脱敏配置状态。

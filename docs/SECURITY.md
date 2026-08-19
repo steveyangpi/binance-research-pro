@@ -10,14 +10,15 @@
 ## Supply chain
 
 - The plugin pins an exact private MCP version.
-- GitHub Actions publishes only through the manual package workflow.
+- GitHub Actions publishes only through the manual package workflow. Published-package verification runs in a separate `packages: read` job.
 - GitHub Packages credentials belong in host npm configuration or CI secrets, never in this repository.
 - Binance API keys, private keys, passphrases, profile files, signatures, and private responses must never enter the repository, CI, logs, fixtures, snapshots, cache, or warehouse.
 - Package and plugin releases are separate stages; an unpublished source version must not be placed in `.mcp.json`.
 
 ## Network and storage
 
-- Binance endpoint overrides require HTTPS.
+- Public Binance endpoint overrides require HTTPS. Signed account requests additionally require an explicit Binance origin allowlist and reject redirects before sending an API key.
+- Private JSON responses preserve large integer identifiers and decimal account values without lossy JavaScript number conversion.
 - Responses are schema-validated. Only public market data may enter the response cache; private account responses are memory-only for the current request.
 - Profile selection enforces declared surfaces. Authentication, permission, and IP failures never fall back to another profile.
 - Remote warehouse imports require HTTPS, reject URL credentials and non-public destinations, revalidate redirects, and enforce time and byte limits.

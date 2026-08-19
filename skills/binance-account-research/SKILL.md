@@ -18,6 +18,8 @@ When multiple profiles cover the same surface, preserve the user's requested `pr
 
 Combine private account facts with public market tools only when the question needs market context. Keep account facts, public market facts, calculations, and interpretation distinct.
 
+Account amounts, prices, quantities, PnL, leverage, and identifiers are lossless strings. Preserve the reported strings in factual output; when arithmetic is needed, use decimal-safe reasoning and never coerce long identifiers or high-precision values through binary floating point.
+
 ## Safety boundary
 
 - Treat balances, positions, orders, profile IDs, and income as sensitive user data. Return only what the task needs.

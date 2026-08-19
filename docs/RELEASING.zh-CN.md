@@ -31,14 +31,14 @@ npm pack --workspace packages/mcp --dry-run
 ```
 
 4. 检查打包结果：不得包含 secrets、本地 warehouse/运行数据或仅属于 monorepo 的文件。
-5. 在有 GitHub Packages 发布权限的环境中，运行手动 **Publish private MCP package** 工作流。GitHub Packages 版本不可变；预检必须拒绝已存在的版本。
-6. 在干净、已认证的消费者环境中，使用与 `.mcp.json` 相同的命令形式安装并启动刚发布的精确版本：
+5. 在有 GitHub Packages 发布权限的环境中，运行手动 **Publish private MCP package** 工作流。GitHub Packages 版本不可变；预检必须拒绝已存在的版本。工作流先在 `packages: write` Job 中发布，再在独立的 `packages: read` Job 中验证精确 registry 制品。
+6. 确认 `verify-published` Job 在禁用 lifecycle scripts 的隔离临时消费者目录中安装包、清除 registry 凭据，并成功启动已安装 CLI 的绝对路径。还可以在另一台干净、已认证的主机上验证与 `.mcp.json` 相同的命令形式：
 
 ```powershell
 npx -y --package=@steveyangpi/binance-research-pro-mcp@X.Y.Z -- binance-research-pro-mcp
 ```
 
-记录成功的 CLI/MCP stdio handshake 后才能继续。未通过该检查时，阶段二被阻断。
+记录工作流中成功的 CLI/MCP stdio handshake 后才能继续。未通过该检查时，阶段二被阻断。
 
 此时 `.mcp.json` 仍可固定旧包。这是预期行为，可保证已安装 Plugin 在发布期间继续工作。
 
