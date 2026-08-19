@@ -79,6 +79,14 @@ describe('AccountProfileStore', () => {
     );
   });
 
+  it('rejects profiles that omit the explicit USER_DATA permission', async () => {
+    const missingPermissions: Record<string, unknown> = { ...spotProfile };
+    delete missingPermissions.permissions;
+    const store = new AccountProfileStore(await writeProfiles([missingPermissions]));
+
+    await expect(store.status()).rejects.toThrow('Required');
+  });
+
   it('rejects duplicate surfaces in a profile', async () => {
     const duplicateSurfaces = {
       ...spotProfile,

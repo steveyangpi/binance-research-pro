@@ -122,6 +122,16 @@ describe('AccountReadService', () => {
         tranId: '9007199254740993',
         tradeId: '9007199254740995',
       },
+      {
+        symbol: '',
+        incomeType: 'TRANSFER',
+        income: '-0.37500000',
+        asset: 'USDT',
+        info: 'TRANSFER',
+        time: 1_750_000_000_001,
+        tranId: '9007199254740994',
+        tradeId: '',
+      },
     ]);
     const income = await incomeFixture.service.futuresIncomeHistory({
       profileId: 'readonly',
@@ -131,6 +141,11 @@ describe('AccountReadService', () => {
       income: '123456789012345.12345678',
       transactionId: '9007199254740993',
       tradeId: '9007199254740995',
+    });
+    expect(income.entries[1]).toMatchObject({
+      incomeType: 'TRANSFER',
+      transactionId: '9007199254740994',
+      tradeId: null,
     });
   });
 });

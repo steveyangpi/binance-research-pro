@@ -65,6 +65,7 @@ npm run plugin:release-check
 
 ```powershell
 git tag -a vX.Y.Z -m "Binance Research Pro vX.Y.Z"
+npm run check:final-release
 git push origin main
 git push origin vX.Y.Z
 ```

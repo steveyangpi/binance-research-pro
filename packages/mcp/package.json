@@ -1,6 +1,6 @@
 {
   "name": "@steveyangpi/binance-research-pro-mcp",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Private Binance Research Pro MCP server",
   "type": "module",
   "license": "UNLICENSED",

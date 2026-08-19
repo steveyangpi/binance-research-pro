@@ -21,6 +21,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      REQUESTED_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,14 +37,14 @@ jobs:
       - run: npm ci
       - name: Verify requested version
         run: |
-          test "$(node --input-type=module -e "import p from './packages/mcp/package.json' with { type: 'json' }; console.log(p.version)")" = "${{ inputs.version }}"
+          test "$(node --input-type=module -e "import p from './packages/mcp/package.json' with { type: 'json' }; console.log(p.version)")" = "$REQUESTED_VERSION"
       - run: npm run release:check
       - name: Refuse an existing package version
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if npm view "@steveyangpi/binance-research-pro-mcp@${{ inputs.version }}" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
-            echo "Package version ${{ inputs.version }} already exists."
+          if npm view "@steveyangpi/binance-research-pro-mcp@$REQUESTED_VERSION" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            printf 'Package version %s already exists.\n' "$REQUESTED_VERSION"
             exit 1
           fi
       - run: npm publish --workspace packages/mcp

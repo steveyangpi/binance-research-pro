@@ -13,6 +13,7 @@ const integerIdentifier = z.union([
     .max(128)
     .regex(/^-?\d+$/),
 ]);
+const tradeIdentifier = z.union([integerIdentifier, z.literal('')]).optional();
 
 function decimalParts(value: string): { units: bigint; scale: number } {
   const negative = value.startsWith('-');
@@ -106,7 +107,7 @@ const futuresIncomeSchema = z
     info: z.string(),
     time: z.number(),
     tranId: integerIdentifier,
-    tradeId: integerIdentifier.optional(),
+    tradeId: tradeIdentifier,
   })
   .passthrough();
 
@@ -241,7 +242,7 @@ export class AccountReadService {
         info: entry.info,
         time: entry.time,
         transactionId: String(entry.tranId),
-        tradeId: entry.tradeId === undefined ? null : String(entry.tradeId),
+        tradeId: entry.tradeId === undefined || entry.tradeId === '' ? null : String(entry.tradeId),
       }));
     return { profileId: response.profileId, entries };
   }

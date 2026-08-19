@@ -22,7 +22,7 @@ const accountProfileSchema = z
         (surfaces) => new Set(surfaces).size === surfaces.length,
         'Account profile surfaces must be unique.',
       ),
-    permissions: z.array(z.literal('USER_DATA')).length(1).default(['USER_DATA']),
+    permissions: z.array(z.literal('USER_DATA')).length(1),
   })
   .strict();
 
