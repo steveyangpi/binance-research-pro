@@ -1,6 +1,6 @@
 {
   "name": "binance-research-pro-workspace",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Monorepo for the Binance Research Pro Codex plugin and private MCP server",
   "workspaces": [

@@ -42,12 +42,23 @@ const serverCommand = process.env.MCP_TEST_COMMAND ?? process.execPath;
 const serverArguments = process.env.MCP_TEST_ARGS_JSON
   ? JSON.parse(process.env.MCP_TEST_ARGS_JSON)
   : [serverEntry];
+const usesNpx = serverCommand === 'npx' || serverCommand === 'npx.cmd';
+const npxRegistryEnvironment = new Set([
+  'NODE_AUTH_TOKEN',
+  'NPM_CONFIG_USERCONFIG',
+  'npm_config_cache',
+]);
 // The MCP SDK intentionally inherits only a safe subset of the parent environment.
 // Forward this server's documented configuration so smoke tests match desktop startup.
+// A published-package smoke test also needs npm's private-registry authentication
+// configuration to be available to its explicitly selected npx launcher.
 const serverEnvironment = Object.fromEntries(
   Object.entries(process.env).filter(
     ([name, value]) =>
-      value !== undefined && (name.startsWith('BINANCE_') || name.startsWith('WAREHOUSE_')),
+      value !== undefined &&
+      (name.startsWith('BINANCE_') ||
+        name.startsWith('WAREHOUSE_') ||
+        (usesNpx && npxRegistryEnvironment.has(name))),
   ),
 );
 Object.assign(serverEnvironment, getDefaultEnvironment());
