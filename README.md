@@ -4,7 +4,7 @@
 
 Binance Research Pro is a private monorepo containing:
 
-- a Codex plugin at the repository root;
+- Codex and Claude Code plugin adapters at the repository root;
 - the publishable `@steveyangpi/binance-research-pro-mcp` stdio server in `packages/mcp`.
 
 The project researches Binance Spot and USD-M Futures public market data, maintains an optional local DuckDB/Parquet history warehouse, and can opt into isolated Ed25519 `USER_DATA` profiles for read-only account research. It has no order execution, leverage-change, transfer, or withdrawal capability.
@@ -17,8 +17,10 @@ Plugin Skills, MCP tool schemas, tests, and documentation evolve together. Keepi
 
 ```text
 .codex-plugin/plugin.json       Codex plugin manifest
-.mcp.json                       Portable, pinned MCP launch configuration
-skills/                         Spot, derivatives, history, and risk workflows
+.claude-plugin/plugin.json      Claude Code plugin manifest
+.mcp.json                       Codex MCP launch configuration
+claude.mcp.json                 Claude Code MCP launch configuration
+skills/                         Shared Spot, derivatives, history, and risk workflows
 packages/mcp/                   TypeScript MCP npm workspace
 scripts/                        Cross-deliverable validation
 docs/                           Architecture, development, release, and security
@@ -32,7 +34,7 @@ docs/                           Architecture, development, release, and security
 - GitHub Packages read access for `@steveyangpi` when running the installed plugin.
 - Network access to Binance endpoints used by the selected public or read-only account research.
 
-Public research needs no Binance credential. Optional account reads use a protected profile file outside the repository; see [Read-only account access](docs/ACCOUNT-ACCESS.md). Never paste credentials into ChatGPT, Codex, source files, logs, or issues.
+Public research needs no Binance credential. Optional account reads use a protected profile file outside the repository; see [Read-only account access](docs/ACCOUNT-ACCESS.md). Never paste credentials into ChatGPT, Codex, Claude Code, source files, logs, or issues.
 
 ## Development quick start
 
@@ -54,21 +56,42 @@ npm run test:mcp:live
 
 ## Runtime model
 
-The plugin launches the fixed private package declared in [.mcp.json](.mcp.json). Optional host settings such as `BINANCE_RESEARCH_DATA_DIR` are forwarded by name through `env_vars`; their values stay on each host.
+The Codex adapter launches the fixed private package declared in [.mcp.json](.mcp.json) and forwards the allowlisted optional names through `env_vars`. The Claude Code adapter launches the same package through [claude.mcp.json](claude.mcp.json) and inherits host-owned environment values. Neither configuration contains their values.
 
-`BINANCE_ACCOUNT_PROFILES_PATH` can point to an external credentials file containing multiple isolated Spot or USD-M read-only profiles. Private account responses are never written to the market cache or historical warehouse.
+## Environment variables
 
-Default data locations are OS-specific. Set one root to move all cache and warehouse state:
+Public endpoints and cache settings have safe defaults. Override them with host environment variables; the plugin configurations intentionally never store values.
+
+| Variable                           | Default                    | Purpose                                  |
+| ---------------------------------- | -------------------------- | ---------------------------------------- |
+| `BINANCE_RESEARCH_DATA_DIR`        | OS user-data directory     | Root for all cache and warehouse state.  |
+| `BINANCE_REST_BASE_URL`            | `https://api.binance.com`  | Public Spot REST base URL.               |
+| `BINANCE_FUTURES_REST_BASE_URL`    | `https://fapi.binance.com` | Public USD-M Futures REST base URL.      |
+| `BINANCE_ACCOUNT_PROFILES_PATH`    | unset                      | External Ed25519 USER_DATA profile file. |
+| `BINANCE_CACHE_TTL_MS`             | `15000`                    | Public ticker, mark-price, and book TTL. |
+| `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | Candle cache TTL.                        |
+| `BINANCE_PERSISTENT_CACHE_ENABLED` | `true`                     | `false` uses memory-only caching.        |
+| `WAREHOUSE_ENABLED`                | `true`                     | `false` hides warehouse tools.           |
+
+Set one root to move all cache and warehouse state without hard-coding a machine path:
 
 ```powershell
+# Windows PowerShell: persist for the current user.
 [Environment]::SetEnvironmentVariable(
   'BINANCE_RESEARCH_DATA_DIR',
-  'H:\marketData',
+  "$env:USERPROFILE\BinanceResearchProData",
   'User'
 )
 ```
 
-Fully restart Codex after changing a forwarded host variable.
+```sh
+# macOS/Linux: apply to the current shell.
+export BINANCE_RESEARCH_DATA_DIR="$HOME/binance-research-pro-data"
+```
+
+Fully restart the active client after changing a host variable. See the [environment reference](packages/mcp/docs/ENVIRONMENT.md) for all variables and advanced path overrides.
+
+`BINANCE_ACCOUNT_PROFILES_PATH` can point to an external credentials file containing multiple isolated Spot or USD-M read-only profiles. Private account responses are never written to the market cache or historical warehouse.
 
 ## Change and release policy
 
@@ -77,7 +100,7 @@ Fully restart Codex after changing a forwarded host variable.
 3. Run `npm run release:check`.
 4. Publish a new immutable MCP package version.
 5. Verify the registry package in a clean environment.
-6. Pin that version in `.mcp.json`, update the plugin cachebuster, and reinstall the plugin.
+6. Pin that version in both MCP configurations, update both plugin manifests, and reinstall the active plugin.
 
 Never point the installed plugin at a repository `dist/index.js` path. See [Development](docs/DEVELOPMENT.md), [Releasing](docs/RELEASING.md), [Architecture](docs/ARCHITECTURE.md), and [Security](docs/SECURITY.md).
 

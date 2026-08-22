@@ -28,7 +28,7 @@ function fail(message) {
   throw new Error(message);
 }
 
-function parsePinnedPackage(server, packageName) {
+function parsePinnedPackage(server, packageName, client) {
   const expectedArgs = ['-y', undefined, '--', 'binance-research-pro-mcp'];
   const packageArgument = server?.args?.[1];
   const expectedPrefix = `--package=${packageName}@`;
@@ -41,12 +41,12 @@ function parsePinnedPackage(server, packageName) {
     server.args.some((argument, index) => argument !== expectedArgs[index]) ||
     !packageArgument?.startsWith(expectedPrefix)
   ) {
-    fail(`Plugin MCP config must use the portable fixed ${packageName} npx launcher.`);
+    fail(`${client} MCP config must use the portable fixed ${packageName} npx launcher.`);
   }
 
   const pinnedVersion = packageArgument.slice(expectedPrefix.length);
   if (!PRODUCT_VERSION.test(pinnedVersion)) {
-    fail(`Plugin MCP version is not an exact published SemVer version: ${pinnedVersion}`);
+    fail(`${client} MCP version is not an exact published SemVer version: ${pinnedVersion}`);
   }
   return { packageArgument, pinnedVersion };
 }
@@ -70,19 +70,43 @@ if (requireFinalTag && !requireCurrent) {
   fail('--require-final-tag requires --require-current.');
 }
 
-const [rootPackage, lockfile, mcpPackage, mcpConfig, pluginManifest] = await Promise.all([
+const [
+  rootPackage,
+  lockfile,
+  mcpPackage,
+  codexMcpConfig,
+  claudeMcpConfig,
+  codexManifest,
+  claudeManifest,
+] = await Promise.all([
   readJson('package.json'),
   readJson('package-lock.json'),
   readJson('packages/mcp/package.json'),
   readJson('.mcp.json'),
+  readJson('claude.mcp.json'),
   readJson('.codex-plugin/plugin.json'),
+  readJson('.claude-plugin/plugin.json'),
 ]);
 
-const server = mcpConfig.mcpServers?.['binance-research-pro'];
-const { packageArgument, pinnedVersion } = parsePinnedPackage(server, mcpPackage.name);
+const codexServer = codexMcpConfig.mcpServers?.['binance-research-pro'];
+const claudeServer = claudeMcpConfig.mcpServers?.['binance-research-pro'];
+const codexPin = parsePinnedPackage(codexServer, mcpPackage.name, 'Codex');
+const claudePin = parsePinnedPackage(claudeServer, mcpPackage.name, 'Claude');
 
-if (pluginManifest.name !== 'binance-research-pro') {
-  fail('Plugin manifest name must remain binance-research-pro.');
+if (
+  codexManifest.name !== 'binance-research-pro' ||
+  claudeManifest.name !== 'binance-research-pro'
+) {
+  fail('Both plugin manifests must remain named binance-research-pro.');
+}
+if (codexManifest.mcpServers !== './.mcp.json') {
+  fail('Codex manifest must reference ./.mcp.json.');
+}
+if (claudeManifest.mcpServers !== './claude.mcp.json') {
+  fail('Claude manifest must reference ./claude.mcp.json.');
+}
+if (claudeManifest.skills !== './skills/') {
+  fail('Claude manifest must reference ./skills/.');
 }
 if (mcpPackage.repository?.url !== 'git+https://github.com/steveyangpi/binance-research-pro.git') {
   fail('MCP package repository URL does not match the monorepo.');
@@ -91,9 +115,21 @@ if (mcpPackage.repository?.directory !== 'packages/mcp') {
   fail('MCP package repository.directory must be packages/mcp.');
 }
 
-const pluginVersion = CODEX_PLUGIN_VERSION.exec(pluginManifest.version ?? '');
-if (!pluginVersion) {
-  fail('Plugin version must use X.Y.Z+codex.YYYYMMDDHHmmss UTC deployment metadata.');
+const codexVersion = CODEX_PLUGIN_VERSION.exec(codexManifest.version ?? '');
+if (!codexVersion) {
+  fail('Codex plugin version must use X.Y.Z+codex.YYYYMMDDHHmmss UTC deployment metadata.');
+}
+if (!PRODUCT_VERSION.test(claudeManifest.version ?? '')) {
+  fail('Claude plugin version must use exact product SemVer.');
+}
+if (codexPin.pinnedVersion !== claudePin.pinnedVersion) {
+  fail('Codex and Claude plugins must pin the same MCP package version.');
+}
+if (codexVersion.groups.core !== codexPin.pinnedVersion) {
+  fail('Codex plugin version core must match its MCP package pin.');
+}
+if (claudeManifest.version !== claudePin.pinnedVersion) {
+  fail('Claude plugin version must match its MCP package pin.');
 }
 
 if (requireCurrent) {
@@ -115,15 +151,13 @@ if (requireCurrent) {
       'The packages/mcp lockfile entry must match packages/mcp/package.json. Regenerate it with npm.',
     );
   }
-  if (pluginVersion.groups.core !== productVersion) {
+  if (codexPin.pinnedVersion !== productVersion || claudePin.pinnedVersion !== productVersion) {
     fail(
-      `Plugin version core ${pluginVersion.groups.core} must equal product version ${productVersion}.`,
+      `Plugins pin ${codexPin.pinnedVersion}, but MCP source is ${productVersion}. Publish and verify the MCP package before updating both plugin pins.`,
     );
   }
-  if (pinnedVersion !== productVersion) {
-    fail(
-      `Plugin pins ${pinnedVersion}, but MCP source is ${productVersion}. Publish and verify the MCP package before updating the plugin pin.`,
-    );
+  if (codexVersion.groups.core !== productVersion || claudeManifest.version !== productVersion) {
+    fail('Both plugin manifest versions must match the product version.');
   }
 
   const pinPattern = new RegExp(
@@ -134,8 +168,8 @@ if (requireCurrent) {
     const content = await readText(document);
     const versions = [...content.matchAll(pinPattern)].map((match) => match.groups.version);
     if (versions.length === 0) fail(`${document} must contain the current exact MCP package pin.`);
-    if (versions.some((version) => version !== pinnedVersion)) {
-      fail(`${document} contains an MCP pin that does not match ${packageArgument}.`);
+    if (versions.some((version) => version !== codexPin.pinnedVersion)) {
+      fail(`${document} contains an MCP pin that does not match ${codexPin.packageArgument}.`);
     }
   }
 }
@@ -148,5 +182,5 @@ if (requireFinalTag) {
 }
 
 console.log(
-  `Release state passed: source ${mcpPackage.version}, plugin pin ${pinnedVersion}, plugin ${pluginManifest.version}.`,
+  `Release state passed: source ${mcpPackage.version}, plugin pins ${codexPin.pinnedVersion}, Codex ${codexManifest.version}, Claude ${claudeManifest.version}.`,
 );

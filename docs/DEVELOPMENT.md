@@ -27,10 +27,10 @@ npm run test:package
 
 - MCP implementation changes belong in `packages/mcp`.
 - Tool contract changes also require Skill and smoke-test updates.
-- Plugin metadata or Skill changes normally require a plugin cachebuster bump before reinstalling.
+- Codex manifest changes require a cachebuster bump before reinstalling; Claude Code manifest changes require plugin validation before reloading.
 - Do not put machine-specific paths, access tokens, or `.npmrc` credentials in the repository.
 - Keep generated `dist`, caches, warehouse data, and local environment files untracked.
 
 ## Local plugin development
 
-The personal marketplace source can point to this repository root. The plugin itself still launches the published package from `.mcp.json`; use `npm run dev:mcp` when debugging MCP source directly. After a plugin change, use the Codex plugin development reinstall/cachebuster workflow described in `docs/INSTALLATION.md`.
+The Codex Personal Marketplace source and the Claude Code local plugin directory can both point to this repository root. Their adapters launch the same published package from `.mcp.json` and `claude.mcp.json`; use `npm run dev:mcp` when debugging MCP source directly. After a plugin change, follow the client-specific reload steps in `docs/INSTALLATION.md` and run `npm run check:claude-plugin` before loading the Claude Code adapter.

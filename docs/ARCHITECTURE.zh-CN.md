@@ -2,25 +2,28 @@
 
 ## 两个交付物
 
-仓库生成两个协调发布的交付物：
+仓库生成三个协调发布的交付物：
 
 ```text
-Codex 插件（仓库根目录）
-  ├─ 清单与 Skills
-  └─ .mcp.json ──npx/stdin/stdout──> 私有 MCP npm 包
-                                      ├─ Spot 与 USD-M HTTP Client
-                                      ├─ 可选 Ed25519 USER_DATA 读取 Client
-                                      ├─ 内存 + SQLite 响应缓存
-                                      └─ DuckDB/Parquet 历史仓库
+Codex 插件                          Claude Code 插件
+  ├─ .codex-plugin/plugin.json        ├─ .claude-plugin/plugin.json
+  ├─ skills/（共享）                  ├─ skills/（共享）
+  └─ .mcp.json                        └─ claude.mcp.json
+               \                         /
+                └──npx/stdin/stdout──> 私有 MCP npm 包
+                                             ├─ Spot 与 USD-M HTTP Client
+                                             ├─ 可选 Ed25519 USER_DATA 读取 Client
+                                             ├─ 内存 + SQLite 响应缓存
+                                             └─ DuckDB/Parquet 历史仓库
 ```
 
-正式发布时，根 workspace、MCP 包、精确 runtime pin、当前安装文档与最终 Git tag `vX.Y.Z` 共享一个产品版本 `X.Y.Z`。Codex manifest 使用相同 core，并追加 UTC 部署修订：`X.Y.Z+codex.YYYYMMDDHHmmss`。在 MCP 发布期间，源码可暂时领先已安装 pin，直到已发布包通过验证；该两阶段门由 `RELEASING.md` 定义。
+正式发布时，根 workspace、MCP 包、两份精确 runtime pin、当前安装文档、Claude manifest 与最终 Git tag `vX.Y.Z` 共享一个产品版本 `X.Y.Z`。Codex manifest 使用相同 core，并追加 UTC 部署修订：`X.Y.Z+codex.YYYYMMDDHHmmss`。在 MCP 发布期间，源码可暂时领先两端已安装 pin，直到已发布包通过验证；该两阶段门由 `RELEASING.md` 定义。
 
 ## 运行流程
 
-1. Codex 加载 `.codex-plugin/plugin.json` 并发现五个 Skills。
-2. `.mcp.json` 通过 `npx` 启动一个固定版本的私有包。
-3. Codex 只转发 `env_vars` 中列出的可选环境变量。
+1. Codex 加载 `.codex-plugin/plugin.json`；Claude Code 加载 `.claude-plugin/plugin.json`；两者发现相同的五个共享 Skills。
+2. 两个客户端分别通过自己的 MCP 配置，以 `npx` 启动同一个固定版本的私有包。
+3. Codex 只转发 `env_vars` 中列出的可选变量；Claude Code 继承宿主机环境变量。
 4. MCP Server 通过 stdio JSON-RPC 暴露公共市场、可选私有账户读取与本地仓库工具。
 5. Skills 选择工具、解释结果，并执行研究与风险边界。
 

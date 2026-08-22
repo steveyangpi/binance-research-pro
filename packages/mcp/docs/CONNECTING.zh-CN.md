@@ -7,7 +7,7 @@
 - Node.js 22.13 或更高版本。
 - npm/npx 可用，且首次安装时可以访问 npm 注册表。
 - 能访问 Binance 公共 Spot 与 USDⓈ-M Futures API。
-- Codex Desktop/CLI/IDE，或其他支持本地 stdio MCP 的客户端。
+- Codex Desktop/CLI/IDE、Claude Code，或其他支持本地 stdio MCP 的客户端。
 
 ## 推荐：固定 npm 版本启动
 
@@ -19,14 +19,14 @@ npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research
 
 首次启动由 npx 下载并缓存私有包；请先配置 `@steveyangpi` GitHub Packages 注册表和身份验证。后续启动复用 npm 缓存，升级必须显式修改版本号并重新验证。
 
-Codex CLI 可注册为独立 MCP：
+仅当对应插件未安装时，才将其注册为独立 Codex 或 Claude Code MCP：
 
 ```powershell
 codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
-codex mcp list
+claude mcp add --scope local binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
 ```
 
-安装 `Binance Research Pro` 插件时不需要再注册独立 MCP，因为插件自己的 `.mcp.json` 会启动同一服务。
+仓库插件适配层会分别通过 Codex 的 `.mcp.json` 和 Claude Code 的 `claude.mcp.json` 启动同一服务，因此不需要重复注册独立 MCP。
 
 用户级 `~/.codex/config.toml` 示例：
 

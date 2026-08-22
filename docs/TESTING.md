@@ -10,7 +10,15 @@ npm run check
 npm run test:package
 ```
 
-The gate covers repository formatting, ESLint, TypeScript, unit tests, deterministic MCP handshakes, every exposed tool's schema and safety annotations, canonical Skill-to-tool references, Plugin structure, normal release-state validation, tarball contents, isolated installation, and a handshake through the installed CLI. The default handshake deliberately removes `BINANCE_ACCOUNT_PROFILES_PATH`, so a developer's real profile cannot make the test environment-dependent.
+The gate covers repository formatting, ESLint, TypeScript, unit tests, deterministic MCP handshakes, every exposed tool's schema and safety annotations, canonical Skill-to-tool references, both Plugin structures, normal release-state validation, tarball contents, isolated installation, and a handshake through the installed CLI. The default handshake deliberately removes `BINANCE_ACCOUNT_PROFILES_PATH`, so a developer's real profile cannot make the test environment-dependent.
+
+For Claude Code manifest acceptance, run:
+
+```powershell
+npm run check:claude-plugin
+```
+
+The repository-root `CLAUDE.md` remains project context rather than plugin context, so Claude Code reports that expected warning; the dependency-free validator enforces the plugin manifest fields used by this project.
 
 Account unit tests use generated keys and synthetic responses. They verify the signed-origin allowlist, redirect rejection, lossless large integer parsing, exact decimal output, and zero-balance/flat-position filtering without using a real credential.
 
@@ -38,4 +46,4 @@ The manual publish workflow installs the exact registry artifact into an isolate
 - Configured account reads select the intended profile and private responses are not cached.
 - Trading, cancellation, leverage-change, transfer, and withdrawal requests are clearly unsupported.
 
-Before stage-two release, `npm run plugin:release-check` must also prove that `.mcp.json` pins the current source package version.
+Before stage-two release, `npm run plugin:release-check` must also prove that both MCP configurations pin the current source package version.

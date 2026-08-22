@@ -7,7 +7,7 @@
 - Node.js 22.13 or newer.
 - npm/npx and registry access for the first installation.
 - Network access to the public Binance Spot and USDⓈ-M Futures APIs.
-- Codex Desktop/CLI/IDE, or another local stdio MCP client.
+- Codex Desktop/CLI/IDE, Claude Code, or another local stdio MCP client.
 
 ## Recommended: launch a pinned npm version
 
@@ -19,14 +19,14 @@ npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research
 
 npx downloads and caches the private package on first launch. Configure the `@steveyangpi` GitHub Packages registry and authentication first. Upgrades are explicit version changes and must be revalidated.
 
-Register it as a standalone Codex MCP only when the plugin is not installed:
+Register it as a standalone Codex or Claude Code MCP only when the corresponding plugin is not installed:
 
 ```powershell
 codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
-codex mcp list
+claude mcp add --scope local binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
 ```
 
-The `Binance Research Pro` plugin already launches this server from its `.mcp.json`, so a duplicate standalone registration is unnecessary.
+The repository plugin adapters already launch this server through `.mcp.json` for Codex and `claude.mcp.json` for Claude Code, so duplicate standalone registrations are unnecessary.
 
 User-level `~/.codex/config.toml` example:
 

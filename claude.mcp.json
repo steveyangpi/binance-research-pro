@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "binance-research-pro": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--package=@steveyangpi/binance-research-pro-mcp@0.4.3",
+        "--",
+        "binance-research-pro-mcp"
+      ]
+    }
+  }
+}

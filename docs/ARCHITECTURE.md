@@ -2,25 +2,28 @@
 
 ## Deliverables
 
-The repository produces two coordinated release deliverables:
+The repository produces three coordinated deliverables:
 
 ```text
-Codex plugin (repository root)
-  ├─ manifest and Skills
-  └─ .mcp.json ──npx/stdin/stdout──> private MCP npm package
-                                      ├─ Spot and USD-M HTTP clients
-                                      ├─ optional Ed25519 USER_DATA read client
-                                      ├─ in-memory + SQLite response cache
-                                      └─ DuckDB/Parquet history warehouse
+Codex plugin                         Claude Code plugin
+  ├─ .codex-plugin/plugin.json         ├─ .claude-plugin/plugin.json
+  ├─ skills/ (shared)                  ├─ skills/ (shared)
+  └─ .mcp.json                         └─ claude.mcp.json
+               \                         /
+                └──npx/stdin/stdout──> private MCP npm package
+                                             ├─ Spot and USD-M HTTP clients
+                                             ├─ optional Ed25519 USER_DATA read client
+                                             ├─ in-memory + SQLite response cache
+                                             └─ DuckDB/Parquet history warehouse
 ```
 
-A formal release shares one product version, `X.Y.Z`, across the root workspace, MCP package, exact runtime pin, current installation documentation, and final Git tag `vX.Y.Z`. The Codex manifest uses the same core plus a UTC deployment revision: `X.Y.Z+codex.YYYYMMDDHHmmss`. During MCP publication, source may lead the installed pin until the published package has been verified; `RELEASING.md` defines that two-stage gate.
+A formal release shares one product version, `X.Y.Z`, across the root workspace, MCP package, both exact runtime pins, current installation documentation, Claude manifest, and final Git tag `vX.Y.Z`. The Codex manifest uses the same core plus a UTC deployment revision: `X.Y.Z+codex.YYYYMMDDHHmmss`. During MCP publication, source may lead both installed pins until the published package has been verified; `RELEASING.md` defines that two-stage gate.
 
 ## Runtime flow
 
-1. Codex loads `.codex-plugin/plugin.json` and discovers the five Skills.
-2. `.mcp.json` starts an exact private package with `npx`.
-3. Codex forwards only the optional variables listed in `env_vars`.
+1. Codex loads `.codex-plugin/plugin.json`; Claude Code loads `.claude-plugin/plugin.json`; both discover the five shared Skills.
+2. Each client starts the same exact private package with `npx` through its client-specific MCP configuration.
+3. Codex forwards only the optional variables listed in `env_vars`; Claude Code inherits host-owned environment values.
 4. The MCP server exposes public market, optional private account reads, and local-warehouse tools over stdio JSON-RPC.
 5. Skills select tools, interpret results, and enforce research and risk boundaries.
 

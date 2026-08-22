@@ -27,10 +27,10 @@ npm run test:package
 
 - MCP 实现在 `packages/mcp` 中维护。
 - 工具名称、Schema 或语义变化时，同步更新 Skills 与 smoke tests。
-- 插件清单或 Skill 变化后，重新安装前通常需要提升插件 cachebuster 版本。
+- Codex 清单变更后，重装前需要提升 cachebuster；Claude Code 清单变更后，重新加载前需要运行插件校验。
 - 不要提交机器路径、访问令牌或含凭据的 `.npmrc`。
 - `dist`、缓存、历史仓库数据和本地环境文件不得进入 Git。
 
 ## 本地插件开发
 
-个人 marketplace 可以把本仓库根目录作为插件源。插件运行时仍通过 `.mcp.json` 启动已发布的私有包；调试未发布 MCP 源码时使用 `npm run dev:mcp`。插件修改后的重装流程见 `docs/INSTALLATION.zh-CN.md`。
+Codex Personal Marketplace 源和 Claude Code 本地插件目录都可指向本仓库根目录。两个适配层分别通过 `.mcp.json` 和 `claude.mcp.json` 启动同一个已发布私有包；调试未发布 MCP 源码时使用 `npm run dev:mcp`。插件修改后遵循 `docs/INSTALLATION.zh-CN.md` 中的客户端专用重载步骤，并在加载 Claude Code 适配层前运行 `npm run check:claude-plugin`。

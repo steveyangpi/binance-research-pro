@@ -1,0 +1,10 @@
+{
+  "name": "binance-research-pro",
+  "version": "0.4.3",
+  "description": "Private Binance Spot, USD-M Futures and historical market research workflows.",
+  "author": {
+    "name": "Sai"
+  },
+  "skills": "./skills/",
+  "mcpServers": "./claude.mcp.json"
+}

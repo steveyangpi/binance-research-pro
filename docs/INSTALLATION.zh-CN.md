@@ -2,36 +2,50 @@
 
 ## 1. 配置 npm 身份验证
 
-插件会下载 GitHub Packages 中的私有包。每台机器分别配置，不要把 Token 提交到仓库：
+两个插件都会下载私有 GitHub Packages 制品。请在每台宿主机配置身份验证，不要提交 Token：
 
 ```powershell
 npm config set @steveyangpi:registry https://npm.pkg.github.com
 npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.github.com
 ```
 
-用户名填写 GitHub 用户名，密码使用带 `read:packages` 权限的 classic PAT；因为包是私有的，账号还需具备仓库读取权限。验证 `.mcp.json` 当前固定的包：
+用户名填写 GitHub 用户名，密码使用带 `read:packages` 权限的 classic PAT；因为包是私有的，账号还需具备仓库读取权限。验证两个插件适配层固定的包：
 
 ```powershell
 npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.3 -- binance-research-pro-mcp
 ```
 
-这是 stdio Server，正常情况下会静默等待 JSON-RPC 输入，可按 Ctrl+C 停止。
+该命令是 stdio Server，通常会静默等待 JSON-RPC 输入；使用 Ctrl+C 停止。
 
-## 2. 注册并安装插件
+## 2. 安装 Codex 插件
 
-Personal marketplace 的插件源码应解析到：
+对于 Personal marketplace，使插件源解析到：
 
 ```text
-C:\Users\<用户名>\plugins\binance-research-pro
+C:\Users\<you>\plugins\binance-research-pro
 ```
 
 该目录可以是指向本仓库根目录的 junction。通过 Codex 插件开发流程把它注册到 Personal marketplace，安装 `binance-research-pro`，然后完全重启 Codex 并新建 task。
 
-不要把 `packages/mcp` 注册为插件源，插件清单位于仓库根目录。
+## 3. 本地加载 Claude Code 插件
 
-## 3. 配置可选的本机状态
+以仓库根目录作为插件目录，使 Claude Code 能读取 `.claude-plugin/plugin.json`、共享的 `skills/` 目录和 `claude.mcp.json`：
 
-`.mcp.json` 只声明允许转发的变量名，不保存变量值。例如：
+```powershell
+claude --plugin-dir .\
+```
+
+使用前验证同一目录：
+
+```powershell
+npm run check:claude-plugin
+```
+
+不要把 `packages/mcp` 注册为插件源。清单和客户端专用 MCP 适配层均位于仓库根目录。
+
+## 4. 配置可选宿主状态
+
+配置值始终由宿主机持有。Codex 转发 `.mcp.json` 中声明的可选变量名；Claude Code 通过 `claude.mcp.json` 继承宿主进程环境。两份文件都不保存变量值。例如：
 
 ```powershell
 [Environment]::SetEnvironmentVariable(
@@ -41,20 +55,20 @@ C:\Users\<用户名>\plugins\binance-research-pro
 )
 ```
 
-修改变量后完全重启 Codex。全部配置见 `packages/mcp/docs/ENVIRONMENT.zh-CN.md`。
+修改变量后重启正在使用的客户端。全部配置见 `packages/mcp/docs/ENVIRONMENT.zh-CN.md`。
 
-可选账户研究通过 `BINANCE_ACCOUNT_PROFILES_PATH` 指向仓库外受保护的 Ed25519 Profile 文件。不要把其中内容写入本仓库。按照 `ACCOUNT-ACCESS.zh-CN.md` 配置后完全重启应用。
+可选账户研究使用 `BINANCE_ACCOUNT_PROFILES_PATH` 和仓库外受保护的 Ed25519 Profile 文件。绝不能把其值写入本仓库。请遵循 `ACCOUNT-ACCESS.zh-CN.md`，配置后重启正在使用的客户端。
 
-## 4. 验收
+## 5. 验收检查
 
-- 查询实时 Spot 市场比较；
-- 查询 USD-M 资金费率与基差；
-- 检查本地历史仓库状态；
-- 调用 `account_profiles_status`；除非已主动添加受保护 Profile，否则应报告未配置；
+- 请求当前 Spot 对比；
+- 请求 USD-M funding/basis 摘要；
+- 查看本地 warehouse 状态；
+- 调用 `account_profiles_status`；除非已特意配置受保护的 Profile，否则应报告未配置；
 - 确认不存在下单、撤单、调整杠杆、转账或提现工具。
 
-以上通过后再删除旧的独立 `binance-analysis` 用户 MCP 配置，否则工具可能重复出现。
+只有在这些检查通过后，才移除旧的独立 `binance-analysis` user MCP 条目，否则工具可能重复出现。
 
 ## 更新
 
-不要直接修改安装缓存。应修改本源码仓库、完成校验、提升插件 cachebuster，并在新 MCP 私有包发布后从 Personal marketplace 重装。准确顺序见 `RELEASING.zh-CN.md`。
+不要修改已安装插件缓存内的文件。更新此源码仓库并运行校验，发布并验证引用的 MCP 包，然后在阶段二同时更新两个插件适配层。完整顺序见 `RELEASING.zh-CN.md`。

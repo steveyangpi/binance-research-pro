@@ -10,7 +10,15 @@ npm run check
 npm run test:package
 ```
 
-检查内容包括仓库格式、ESLint、TypeScript、单元测试、可重复的 MCP 握手、所有已暴露工具的 Schema 与安全 annotations、canonical Skill 到 tool 的引用、插件结构、普通发布状态校验、tarball 内容、隔离安装，以及通过已安装 CLI 启动后的握手。默认握手会主动移除 `BINANCE_ACCOUNT_PROFILES_PATH`，避免开发机上的真实 Profile 使测试结果依赖环境。
+检查内容包括仓库格式、ESLint、TypeScript、单元测试、可重复的 MCP 握手、所有已暴露工具的 Schema 与安全 annotations、canonical Skill 到 tool 的引用、两个插件结构、普通发布状态校验、tarball 内容、隔离安装，以及通过已安装 CLI 启动后的握手。默认握手会主动移除 `BINANCE_ACCOUNT_PROFILES_PATH`，避免开发机上的真实 Profile 使测试结果依赖环境。
+
+Claude Code 插件清单验收运行：
+
+```powershell
+npm run check:claude-plugin
+```
+
+仓库根目录的 `CLAUDE.md` 是项目上下文而不是插件上下文，因此 Claude Code 会报告该预期警告；本项目的无第三方依赖校验器会强制检查所使用的插件清单字段。
 
 账户单元测试仅使用临时生成密钥和合成响应，验证签名 origin allowlist、重定向拒绝、长整型无损解析、精确十进制输出，以及零余额/空仓过滤，不使用真实凭据。
 
@@ -38,4 +46,4 @@ npm run test:mcp:live
 - 已配置账户读取选择正确 Profile，私有响应不会进入缓存。
 - 交易、撤单、调整杠杆、转账和提现请求明确报告为不支持。
 
-第二阶段发布前还必须运行 `npm run plugin:release-check`，证明 `.mcp.json` 已固定到当前源码包版本。
+第二阶段发布前还必须运行 `npm run plugin:release-check`，证明两份 MCP 配置均已固定到当前源码包版本。
