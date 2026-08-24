@@ -62,7 +62,7 @@ Requires Node.js 22.13 or later. For private GitHub Packages access, configure t
 ```powershell
 npm config set @steveyangpi:registry https://npm.pkg.github.com
 npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.github.com
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.4 -- binance-research-pro-mcp
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
 ```
 
 The command is a stdio server and waits for MCP JSON-RPC input. Without `BINANCE_ACCOUNT_PROFILES_PATH`, account tools report an unconfigured state while public and warehouse tools remain available. Credentials must stay in a protected external file. Set `BINANCE_RESEARCH_DATA_DIR` to move the optional local cache and warehouse. See the repository's [installation guide](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/INSTALLATION.md) and [account-access guide](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.md).
