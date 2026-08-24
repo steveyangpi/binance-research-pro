@@ -18,4 +18,4 @@ This makes both plugins independent of drive letters, checkout locations, and bu
 
 Configuration values are host-owned. The Codex adapter uses `.mcp.json` and its `env_vars` allowlist to forward optional values already present in its process environment. The Claude Code adapter uses `claude.mcp.json` and inherits its host process environment. Neither configuration embeds values. `BINANCE_RESEARCH_DATA_DIR` is the recommended single portability setting because all default cache and warehouse paths derive from it.
 
-The exact package version prevents an unreviewed registry update from changing plugin behavior. Updating both adapters is stage two of the release process in `RELEASING.md`.
+The exact package version plus its published `npm-shrinkwrap.json` prevents an unreviewed registry dependency update from changing plugin behavior. Updating both adapters is stage two of the release process in `RELEASING.md`.

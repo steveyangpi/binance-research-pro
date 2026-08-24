@@ -18,7 +18,7 @@ For Claude Code manifest acceptance, run:
 npm run check:claude-plugin
 ```
 
-The repository-root `CLAUDE.md` remains project context rather than plugin context, so Claude Code reports that expected warning; the dependency-free validator enforces the plugin manifest fields used by this project.
+The repository-root `CLAUDE.md` remains project context rather than plugin context, so Claude Code reports that expected warning; the dependency-free validator enforces the plugin manifest fields used by this project. CI runs `check` and `test:package` on Linux and Windows, and installs the pinned Claude Code CLI on Linux to run this native validation.
 
 Account unit tests use generated keys and synthetic responses. They verify the signed-origin allowlist, redirect rejection, lossless large integer parsing, exact decimal output, and zero-balance/flat-position filtering without using a real credential.
 

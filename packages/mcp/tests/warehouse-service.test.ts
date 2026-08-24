@@ -1,3 +1,4 @@
+import AdmZip from 'adm-zip';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,7 +16,7 @@ afterEach(async () => {
   }
 });
 
-function createWarehouse() {
+function createWarehouse(overrides: NodeJS.ProcessEnv = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'binance-mcp-warehouse-'));
   temporaryDirectories.push(directory);
   const importRoot = join(directory, 'imports');
@@ -25,6 +26,7 @@ function createWarehouse() {
     WAREHOUSE_METADATA_DB_PATH: join(directory, 'metadata.sqlite'),
     WAREHOUSE_TEMP_DIR: join(directory, 'tmp'),
     WAREHOUSE_IMPORT_ROOTS: importRoot,
+    ...overrides,
   });
   const service = new WarehouseService(config);
   services.push(service);
@@ -70,7 +72,104 @@ describe('WarehouseService', () => {
     expect(second.duplicate).toBe(true);
     expect(second.importId).toBe(first.importId);
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ symbol: 'BTCUSDT', interval: '1h', close: 42800 });
+    expect(rows[0]).toMatchObject({
+      symbol: 'BTCUSDT',
+      interval: '1h',
+      close: 42800,
+      open_time: '2024-01-01 01:00:00',
+    });
+
+    const offsetRows = await service.queryCandles({
+      dataset: 'candles',
+      source: 'fixture',
+      market: 'spot',
+      symbol: 'BTCUSDT',
+      interval: '1h',
+      startTime: '2024-01-01T05:30:00+05:00',
+      limit: 10,
+    });
+    expect(offsetRows).toHaveLength(1);
+    expect(offsetRows[0]).toMatchObject({ open_time: '2024-01-01 01:00:00' });
+
+    expect(
+      await service.candleDataRange({
+        dataset: 'candles',
+        source: 'fixture',
+        market: 'spot',
+        symbol: 'BTCUSDT',
+        interval: '1h',
+      }),
+    ).toMatchObject({
+      rowCount: 2,
+      minOpenTime: '2024-01-01 00:00:00',
+      maxOpenTime: '2024-01-01 01:00:00',
+    });
+  });
+
+  it('imports a ZIP entry without buffering its contents', async () => {
+    const { importRoot, service } = createWarehouse();
+    const inputPath = join(importRoot, 'BTCUSDT-1h.zip');
+    const archive = new AdmZip();
+    archive.addFile(
+      'BTCUSDT-1h.csv',
+      Buffer.from(
+        '1704067200000,42000,42500,41900,42400,100,1704070799999,4220000,50,55,2320000,0\n',
+      ),
+    );
+    archive.writeZip(inputPath);
+
+    const result = await service.importFile({
+      path: inputPath,
+      dataset: 'candles',
+      source: 'fixture',
+      profile: 'binance-kline',
+      market: 'spot',
+      symbol: 'BTCUSDT',
+      interval: '1h',
+    });
+
+    expect(result.rowCount).toBe(1);
+    expect(result.files).toHaveLength(1);
+  });
+
+  it('rejects a ZIP entry that exceeds the configured extraction limit', async () => {
+    const { importRoot, service } = createWarehouse({ WAREHOUSE_MAX_IMPORT_BYTES: '150' });
+    const inputPath = join(importRoot, 'oversized.zip');
+    const archive = new AdmZip();
+    archive.addFile('large.csv', Buffer.alloc(200, 'a'));
+    archive.writeZip(inputPath);
+
+    await expect(
+      service.importFile({
+        path: inputPath,
+        dataset: 'candles',
+        source: 'fixture',
+        profile: 'generic-csv',
+      }),
+    ).rejects.toThrow('Uncompressed ZIP entry exceeds WAREHOUSE_MAX_IMPORT_BYTES.');
+  });
+
+  it('returns a stable empty candle range shape', async () => {
+    const { service } = createWarehouse();
+
+    await expect(
+      service.candleDataRange({
+        dataset: 'candles',
+        source: 'fixture',
+        market: 'spot',
+        symbol: 'BTCUSDT',
+        interval: '1h',
+      }),
+    ).resolves.toEqual({
+      dataset: 'candles',
+      source: 'fixture',
+      market: 'spot',
+      symbol: 'BTCUSDT',
+      interval: '1h',
+      rowCount: 0,
+      minOpenTime: null,
+      maxOpenTime: null,
+    });
   });
 
   it('imports a generic header CSV without a platform-specific adapter', async () => {

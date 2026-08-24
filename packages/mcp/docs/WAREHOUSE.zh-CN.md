@@ -45,7 +45,7 @@ open_time,open,high,low,close,volume,close_time,quote_asset_volume,
 trade_count,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore
 ```
 
-必须提供 `symbol` 和 `interval`，建议同时提供 `market=spot|um|cm`。时间戳根据量级自动识别毫秒或微秒，并转为 DuckDB `TIMESTAMP`。输出使用 ZSTD 压缩，按 `year/month` 分区。
+必须提供 `symbol` 和 `interval`，建议同时提供 `market=spot|um|cm`。时间戳根据量级自动识别毫秒或微秒，并转为不带时区的 UTC DuckDB `TIMESTAMP`。输出使用 ZSTD 压缩，按 `year/month` 分区。
 
 ### `generic-csv`
 
@@ -95,8 +95,8 @@ startTime=2025-01-01T00:00:00Z，endTime=2025-01-31T23:59:59Z，limit=500。
 ## 安全与运维
 
 - 本地文件必须位于白名单根目录内，检查会解析符号链接和 Windows junction。
-- URL 只允许 HTTPS，不允许凭据；每次重定向都会重新校验，并拒绝解析到本机或私网的地址。
-- 下载、输入文件和 ZIP 解压后的 CSV 都受 `WAREHOUSE_MAX_IMPORT_BYTES` 限制。
+- URL 只允许 HTTPS，不允许凭据；每次重定向都会重新校验，每个 HTTPS 连接都绑定到已校验的公网地址。
+- 下载、输入文件和 ZIP 流式解压都受 `WAREHOUSE_MAX_IMPORT_BYTES` 限制。
 - 导入在一个进程内串行执行。不要启动多个写进程同时使用同一元数据数据库。
 - 删除或移动 Parquet 文件不会自动修改元数据；查询会跳过已不存在的文件，运维时应同步管理目录与数据库。
 - `generic-csv` 使用自动类型推断。长期稳定的数据集应在后续版本增加显式导入配置和清洗测试。

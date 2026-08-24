@@ -107,6 +107,8 @@ The server transports MCP messages over stdin/stdout, so application logs must n
 
 ## Example prompts
 
+The repository plugin adapters launch this server through `.mcp.json` for Codex and `claude.mcp.json` for Claude Code, and provide shared Spot, derivatives, history, account-research, and risk-review Skills. Account research requires an explicitly configured read-only Profile; trading remains unavailable.
+
 - Analyze the trend, RSI, and MACD of the latest 200 one-hour BTCUSDT candles.
 - Compare BTCUSDT, ETHUSDT, and SOLUSDT by 24-hour quote volume and price change.
 - Inspect the first 100 ETHUSDT order-book levels and explain the spread and imbalance.

@@ -21,11 +21,9 @@
 - Private JSON responses preserve large integer identifiers and decimal account values without lossy JavaScript number conversion.
 - Responses are schema-validated. Only public market data may enter the response cache; private account responses are memory-only for the current request.
 - Profile selection enforces declared surfaces. Authentication, permission, and IP failures never fall back to another profile.
-- Remote warehouse imports require HTTPS, reject URL credentials and non-public destinations, revalidate redirects, and enforce time and byte limits.
+- Remote warehouse imports require HTTPS, reject URL credentials and non-public destinations, revalidate redirects, bind every connection to its validated address, and enforce time and byte limits.
 - Local imports are confined to explicit roots after path and filesystem-link resolution.
-- ZIP entries, extracted size, row counts, and SQL identifiers are validated before metadata is committed.
-
-The current URL guard resolves DNS before `fetch`; DNS can theoretically change between validation and connection. For stronger isolation, restrict egress to trusted Binance/import hosts at the network layer. Imports should include SHA-256 when the source provides it.
+- ZIP extraction streams one selected CSV entry and enforces the actual extracted-byte limit before metadata is committed.
 
 ## Reporting
 

@@ -18,6 +18,8 @@ describe('warehouse download address policy', () => {
     '::',
     '::1',
     '::ffff:127.0.0.1',
+    '::ffff:7f00:1',
+    '::ffff:c0a8:101',
     'fc00::1',
     'fe80::1',
     'ff02::1',

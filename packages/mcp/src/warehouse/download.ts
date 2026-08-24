@@ -1,56 +1,41 @@
-import { isIP } from 'node:net';
 import { lookup } from 'node:dns/promises';
 import { createWriteStream, mkdirSync } from 'node:fs';
-import { pipeline } from 'node:stream/promises';
-import { Transform } from 'node:stream';
-import { Readable } from 'node:stream';
+import { request as httpsRequest } from 'node:https';
+import { isIP } from 'node:net';
 import { dirname } from 'node:path';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import type { IncomingMessage } from 'node:http';
+import ipaddr from 'ipaddr.js';
+
+type ResolvedAddress = {
+  address: string;
+  family: 4 | 6;
+};
+
+type ValidatedRemoteUrl = {
+  url: URL;
+  hostname: string;
+  address: ResolvedAddress;
+};
+
+function normalizeAddress(address: string): ResolvedAddress | undefined {
+  const normalized = address.replace(/^\[|\]$/g, '');
+  if (!ipaddr.isValid(normalized)) return undefined;
+  const parsed = ipaddr.process(normalized);
+  if (parsed.range() !== 'unicast') return undefined;
+  return {
+    address: parsed.toString(),
+    family: parsed.kind() === 'ipv4' ? 4 : 6,
+  };
+}
 
 /** Reject non-public destinations before a warehouse URL download. */
 export function isDisallowedAddress(address: string): boolean {
-  const normalized = address.replace(/^\[|\]$/g, '').toLowerCase();
-  const ipVersion = isIP(normalized);
-  if (ipVersion === 4) {
-    const octets = normalized.split('.').map(Number);
-    const first = octets[0] ?? 0;
-    const second = octets[1] ?? 0;
-    const third = octets[2] ?? 0;
-    return (
-      first === 10 ||
-      first === 127 ||
-      first === 0 ||
-      (first === 100 && second >= 64 && second <= 127) ||
-      (first === 169 && second === 254) ||
-      (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 0 && (third === 0 || third === 2)) ||
-      (first === 192 && second === 168) ||
-      (first === 198 && (second === 18 || second === 19)) ||
-      (first === 198 && second === 51 && third === 100) ||
-      (first === 203 && second === 0 && third === 113) ||
-      first >= 224
-    );
-  }
-  if (ipVersion !== 6) return false;
-  if (normalized.startsWith('::ffff:')) {
-    const mappedIpv4 = normalized.slice('::ffff:'.length);
-    if (isIP(mappedIpv4) === 4) return isDisallowedAddress(mappedIpv4);
-  }
-  return (
-    normalized === '::1' ||
-    normalized === '::' ||
-    normalized.startsWith('fc') ||
-    normalized.startsWith('fd') ||
-    normalized.startsWith('fe8') ||
-    normalized.startsWith('fe9') ||
-    normalized.startsWith('fea') ||
-    normalized.startsWith('feb') ||
-    normalized.startsWith('ff') ||
-    normalized.startsWith('2001:db8:') ||
-    normalized === '2001:db8::'
-  );
+  return normalizeAddress(address) === undefined;
 }
 
-async function validateRemoteUrl(rawUrl: string): Promise<URL> {
+async function validateRemoteUrl(rawUrl: string): Promise<ValidatedRemoteUrl> {
   const url = new URL(rawUrl);
   if (url.protocol !== 'https:') throw new Error('Only HTTPS warehouse imports are allowed.');
   if (url.username !== '' || url.password !== '') {
@@ -60,14 +45,38 @@ async function validateRemoteUrl(rawUrl: string): Promise<URL> {
   if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
     throw new Error('Localhost import URLs are not allowed.');
   }
+
   const bareHostname = hostname.replace(/^\[|\]$/g, '');
-  const addresses = isIP(bareHostname)
-    ? [{ address: bareHostname }]
-    : await lookup(bareHostname, { all: true, verbatim: true });
-  if (addresses.some(({ address }) => isDisallowedAddress(address))) {
+  const resolved = isIP(bareHostname)
+    ? [bareHostname]
+    : (await lookup(bareHostname, { all: true, verbatim: true })).map(({ address }) => address);
+  const addresses = resolved.map(normalizeAddress);
+  if (addresses.some((address) => address === undefined) || addresses.length === 0) {
     throw new Error('Non-public, private and loopback IP import URLs are not allowed.');
   }
-  return url;
+
+  return { url, hostname: bareHostname, address: addresses[0]! };
+}
+
+function requestValidatedUrl(
+  remote: ValidatedRemoteUrl,
+  timeoutMs: number,
+): Promise<IncomingMessage> {
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest(
+      remote.url,
+      {
+        headers: { host: remote.url.host },
+        lookup: (_hostname, _options, callback) =>
+          callback(null, remote.address.address, remote.address.family),
+        servername: isIP(remote.hostname) === 0 ? remote.hostname : undefined,
+        signal: AbortSignal.timeout(timeoutMs),
+      },
+      resolve,
+    );
+    request.once('error', reject);
+    request.end();
+  });
 }
 
 export async function downloadToFile(
@@ -76,25 +85,26 @@ export async function downloadToFile(
   maxBytes: number,
   timeoutMs: number,
 ): Promise<void> {
-  let url = await validateRemoteUrl(rawUrl);
-  let response: Response | undefined;
+  let remote = await validateRemoteUrl(rawUrl);
+  let response: IncomingMessage | undefined;
   for (let redirects = 0; redirects <= 5; redirects += 1) {
-    response = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-      redirect: 'manual',
-    });
-    if (![301, 302, 303, 307, 308].includes(response.status)) break;
-    const location = response.headers.get('location');
-    await response.body?.cancel();
-    if (location === null) throw new Error('Download redirect does not include a location.');
+    response = await requestValidatedUrl(remote, timeoutMs);
+    if (![301, 302, 303, 307, 308].includes(response.statusCode ?? 0)) break;
+    const location = response.headers.location;
+    response.resume();
+    if (location === undefined) throw new Error('Download redirect does not include a location.');
     if (redirects === 5) throw new Error('Download exceeded five HTTPS redirects.');
-    url = await validateRemoteUrl(new URL(location, url).toString());
+    remote = await validateRemoteUrl(new URL(location, remote.url).toString());
   }
   if (response === undefined) throw new Error('Download did not return a response.');
-  if (!response.ok || response.body === null) {
-    throw new Error(`Download failed with HTTP ${response.status}.`);
+  if ((response.statusCode ?? 0) < 200 || (response.statusCode ?? 0) >= 300) {
+    throw new Error(`Download failed with HTTP ${response.statusCode ?? 0}.`);
   }
-  const declaredLength = Number(response.headers.get('content-length') ?? 0);
+
+  const contentLength = response.headers['content-length'];
+  const declaredLength = Number(
+    Array.isArray(contentLength) ? contentLength[0] : (contentLength ?? 0),
+  );
   if (declaredLength > maxBytes) {
     throw new Error(`Download is larger than WAREHOUSE_MAX_IMPORT_BYTES (${maxBytes}).`);
   }
@@ -111,9 +121,5 @@ export async function downloadToFile(
     },
   });
   mkdirSync(dirname(destination), { recursive: true });
-  await pipeline(
-    Readable.fromWeb(response.body),
-    byteLimit,
-    createWriteStream(destination, { flags: 'wx' }),
-  );
+  await pipeline(response, byteLimit, createWriteStream(destination, { flags: 'wx' }));
 }

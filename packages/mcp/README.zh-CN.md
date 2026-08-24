@@ -107,7 +107,7 @@ npm run test:mcp:live
 
 ## 示例提问
 
-专属 `Binance Research Pro` 插件通过 `.mcp.json` 和固定 npm 版本启动本服务，并提供 Spot、衍生品、历史数据、账户研究和风险审查 Skills。账户研究必须显式配置只读 Profile，所有交易操作仍然排除在外。
+仓库插件适配层分别通过 Codex 的 `.mcp.json` 和 Claude Code 的 `claude.mcp.json` 启动本服务，并提供共享的 Spot、衍生品、历史数据、账户研究和风险审查 Skills。账户研究必须显式配置只读 Profile，所有交易操作仍然排除在外。
 
 - 分析 BTCUSDT 最近 200 根 1 小时 K 线的趋势、RSI 和 MACD。
 - 比较 BTCUSDT、ETHUSDT 和 SOLUSDT 的 24 小时成交额与涨跌幅。

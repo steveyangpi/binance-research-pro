@@ -14,7 +14,7 @@ A formal release has one product version, `X.Y.Z`:
 | Claude Code Plugin manifest                  | `X.Y.Z`                                       |
 | Current installation and connection examples | the same exact pin                            |
 | Final annotated Git tag                      | `vX.Y.Z`                                      |
-| Codex Plugin manifest                        | `X.Y.Z+codex.YYYYMMDDHHmmss`                  |
+| Codex Plugin manifest                        | `X.Y.Z[-prerelease]+codex.YYYYMMDDHHmmss`     |
 
 The 14-digit Codex suffix is a UTC deployment revision, not another product version. Use standard prereleases such as `X.Y.Z-alpha.N`, `X.Y.Z-beta.N`, and `X.Y.Z-rc.N` only during development. Until Stage 2, source may lead both installed Plugin pins; never point either MCP configuration at unpublished source.
 
@@ -46,7 +46,7 @@ At this point both MCP configurations may still pin the previous package. This i
 ## Stage 2: release both plugin adapters
 
 1. Update `.mcp.json` and `claude.mcp.json` to the verified exact package version.
-2. Update `.claude-plugin/plugin.json` to `X.Y.Z` and `.codex-plugin/plugin.json` to `X.Y.Z+codex.YYYYMMDDHHmmss`, using a new UTC Codex deployment revision.
+2. Update `.claude-plugin/plugin.json` to `X.Y.Z[-prerelease]` and `.codex-plugin/plugin.json` to `X.Y.Z[-prerelease]+codex.YYYYMMDDHHmmss`, using a new UTC Codex deployment revision.
 3. Update every current installation/connection example in English and Simplified Chinese. `npm run plugin:release-check` validates the designated current pins.
 4. Run:
 

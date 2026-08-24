@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 
 const PRODUCT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
-const CODEX_PLUGIN_VERSION = /^(?<core>\d+\.\d+\.\d+)\+codex\.(?<revision>\d{14})$/;
+const CODEX_PLUGIN_VERSION =
+  /^(?<core>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\+codex\.(?<revision>\d{14})$/;
 const DOCUMENTS_WITH_CURRENT_PIN = [
   'docs/INSTALLATION.md',
   'docs/INSTALLATION.zh-CN.md',

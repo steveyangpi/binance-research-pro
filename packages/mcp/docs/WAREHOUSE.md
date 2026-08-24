@@ -45,7 +45,7 @@ open_time,open,high,low,close,volume,close_time,quote_asset_volume,
 trade_count,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore
 ```
 
-`symbol` and `interval` are required; `market=spot|um|cm` is recommended. Timestamp magnitude selects milliseconds or microseconds automatically and values become DuckDB `TIMESTAMP`. Output uses ZSTD and `year/month` partitions.
+`symbol` and `interval` are required; `market=spot|um|cm` is recommended. Timestamp magnitude selects milliseconds or microseconds automatically and values become timezone-free UTC DuckDB `TIMESTAMP` values. Output uses ZSTD and `year/month` partitions.
 
 ### `generic-csv`
 
@@ -95,8 +95,8 @@ Rows are returned newest first. When imports overlap on `open_time`, the row fro
 ## Security and operations
 
 - Local paths must be under an allowlisted root; checks resolve symlinks and Windows junctions.
-- URLs require HTTPS and no credentials. Every redirect is revalidated, and hostnames resolving to local/private addresses are rejected.
-- Downloads, source files, and uncompressed ZIP entries are bounded by `WAREHOUSE_MAX_IMPORT_BYTES`.
+- URLs require HTTPS and no credentials. Every redirect is revalidated and each HTTPS connection is bound to its validated public address.
+- Downloads, source files, and streamed ZIP extraction are bounded by `WAREHOUSE_MAX_IMPORT_BYTES`.
 - Imports are serialized in one process. Do not run multiple writers against one metadata database.
 - Moving or deleting Parquet does not mutate metadata automatically; queries skip missing files, so manage the directory and database together.
 - `generic-csv` uses automatic type inference. Add an explicit, tested profile later for any long-lived stable dataset.
