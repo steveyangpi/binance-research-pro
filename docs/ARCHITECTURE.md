@@ -42,8 +42,6 @@ No checkout path is needed at runtime. Package authentication is handled by npm/
 - Binance responses are untrusted network input and are schema-validated.
 - The external account profile file and key material are sensitive local inputs. The parser accepts only Ed25519, `USER_DATA`, and declared read surfaces; status output redacts keys and paths.
 - Environment endpoint overrides must use HTTPS.
-- Remote warehouse downloads reject credentials, redirects to non-public addresses, and oversized bodies.
+- Remote warehouse downloads reject credentials, non-public destinations, redirects to non-public destinations, and oversized bodies; each HTTPS connection is bound to its validated address.
 - Local imports must remain inside configured roots; resolved paths and filesystem links are checked.
-- ZIP extraction validates entries and size limits before committing metadata.
-
-DNS validation and the subsequent HTTP connection are separate operations in the current fetch implementation. This leaves a theoretical DNS-rebinding window; deployments should use trusted HTTPS import hosts and network egress controls for high-assurance environments.
+- ZIP extraction streams one validated CSV entry to a temporary file and enforces its extracted-byte limit before committing metadata.

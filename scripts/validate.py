@@ -141,9 +141,11 @@ def main() -> None:
     if codex_manifest.get("name") != "binance-research-pro":
         fail("Codex manifest name must be binance-research-pro")
     codex_version = codex_manifest.get("version", "")
-    codex_match = re.fullmatch(r"(?P<core>\d+\.\d+\.\d+)\+codex\.\d{14}", codex_version)
+    codex_match = re.fullmatch(
+        r"(?P<core>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\+codex\.\d{14}", codex_version
+    )
     if not codex_match:
-        fail("Codex manifest version must use X.Y.Z+codex.YYYYMMDDHHmmss UTC metadata")
+        fail("Codex manifest version must use X.Y.Z[-prerelease]+codex.YYYYMMDDHHmmss UTC metadata")
     if codex_manifest.get("mcpServers") != "./.mcp.json":
         fail("Codex manifest must reference ./.mcp.json")
     if codex_manifest.get("skills") != "./skills/":

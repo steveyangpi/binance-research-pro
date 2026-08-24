@@ -9,6 +9,7 @@ const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const temporaryRoot = mkdtempSync(join(tmpdir(), 'binance-research-pro-package-'));
 const packageDirectory = join(temporaryRoot, 'package');
 const consumerDirectory = join(temporaryRoot, 'consumer');
+const cacheDirectory = join(temporaryRoot, 'npm-cache');
 const runtimeDataDirectory = join(temporaryRoot, 'runtime-data');
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const bundledNpmCliPath = join(
@@ -49,6 +50,7 @@ function runNpm(args, options = {}) {
 try {
   mkdirSync(packageDirectory, { recursive: true });
   mkdirSync(consumerDirectory, { recursive: true });
+  mkdirSync(cacheDirectory, { recursive: true });
   writeFileSync(
     join(consumerDirectory, 'package.json'),
     JSON.stringify({ name: 'binance-research-pro-package-smoke', private: true }, null, 2),
@@ -61,9 +63,13 @@ try {
   const packed = JSON.parse(packOutput);
   const tarballPath = join(packageDirectory, packed[0].filename);
   if (!existsSync(tarballPath)) throw new Error(`npm pack did not create ${tarballPath}`);
+  if (!packed[0].files?.some((file) => file.path === 'npm-shrinkwrap.json')) {
+    throw new Error('Packed package is missing npm-shrinkwrap.json.');
+  }
 
   runNpm(['install', '--ignore-scripts', '--no-audit', '--no-fund', tarballPath], {
     cwd: consumerDirectory,
+    env: { ...process.env, npm_config_cache: cacheDirectory },
   });
   const installedEntry = join(
     consumerDirectory,

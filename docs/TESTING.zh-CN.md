@@ -18,7 +18,7 @@ Claude Code 插件清单验收运行：
 npm run check:claude-plugin
 ```
 
-仓库根目录的 `CLAUDE.md` 是项目上下文而不是插件上下文，因此 Claude Code 会报告该预期警告；本项目的无第三方依赖校验器会强制检查所使用的插件清单字段。
+仓库根目录的 `CLAUDE.md` 是项目上下文而不是插件上下文，因此 Claude Code 会报告该预期警告；本项目的无第三方依赖校验器会强制检查所使用的插件清单字段。CI 会在 Linux 和 Windows 上运行 `check` 与 `test:package`，并在 Linux 安装固定版本的 Claude Code CLI 来运行此原生校验。
 
 账户单元测试仅使用临时生成密钥和合成响应，验证签名 origin allowlist、重定向拒绝、长整型无损解析、精确十进制输出，以及零余额/空仓过滤，不使用真实凭据。
 

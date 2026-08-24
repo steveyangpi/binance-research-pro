@@ -14,7 +14,7 @@ Binance Research Pro 先发布私有 MCP 包，再发布固定该包版本的 Co
 | Claude Code Plugin manifest        | `X.Y.Z`                                       |
 | 当前安装和连接示例                 | 同一个精确固定版本                            |
 | 最终 annotated Git tag             | `vX.Y.Z`                                      |
-| Codex Plugin manifest              | `X.Y.Z+codex.YYYYMMDDHHmmss`                  |
+| Codex Plugin manifest              | `X.Y.Z[-prerelease]+codex.YYYYMMDDHHmmss`     |
 
 14 位 Codex 后缀是 UTC 部署修订，不是另一套产品版本。开发期间只使用标准预发布版本，例如 `X.Y.Z-alpha.N`、`X.Y.Z-beta.N`、`X.Y.Z-rc.N`。在阶段二之前，源码版本可以领先两端已安装的 Plugin pin；绝不能让任一 MCP 配置指向未发布源码。
 
@@ -46,7 +46,7 @@ npx -y --package=@steveyangpi/binance-research-pro-mcp@X.Y.Z -- binance-research
 ## 阶段二：发布两个插件适配层
 
 1. 将 `.mcp.json` 和 `claude.mcp.json` 更新为已验证的精确包版本。
-2. 将 `.claude-plugin/plugin.json` 设置为 `X.Y.Z`，将 `.codex-plugin/plugin.json` 设置为 `X.Y.Z+codex.YYYYMMDDHHmmss`，并使用新的 UTC Codex 部署修订。
+2. 将 `.claude-plugin/plugin.json` 设置为 `X.Y.Z[-prerelease]`，将 `.codex-plugin/plugin.json` 设置为 `X.Y.Z[-prerelease]+codex.YYYYMMDDHHmmss`，并使用新的 UTC Codex 部署修订。
 3. 同步更新所有展示当前版本的英文与简体中文安装/连接示例。`npm run plugin:release-check` 会验证指定的当前固定版本。
 4. 运行：
 

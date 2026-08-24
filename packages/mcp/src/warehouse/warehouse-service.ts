@@ -1,16 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import {
+  createWriteStream,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
 import { DuckDBInstance } from '@duckdb/node-api';
-import AdmZip from 'adm-zip';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import yauzl from 'yauzl';
 import type { AppConfig } from '../config.js';
 import { parsePathList } from '../platform-paths.js';
 import { sha256File, verifySha256 } from './checksum.js';
@@ -137,11 +139,11 @@ export class WarehouseService {
     const conditions: string[] = [];
     const values: Record<string, string> = {};
     if (query.startTime !== undefined) {
-      conditions.push('open_time >= CAST($startTime AS TIMESTAMP)');
+      conditions.push("open_time >= timezone('UTC', CAST($startTime AS TIMESTAMPTZ))");
       values['startTime'] = query.startTime;
     }
     if (query.endTime !== undefined) {
-      conditions.push('open_time <= CAST($endTime AS TIMESTAMP)');
+      conditions.push("open_time <= timezone('UTC', CAST($endTime AS TIMESTAMPTZ))");
       values['endTime'] = query.endTime;
     }
     const fileList = files.map(sqlString).join(', ');
@@ -173,7 +175,13 @@ export class WarehouseService {
       SELECT COUNT(*) AS row_count, MIN(open_time) AS min_open_time,
              MAX(open_time) AS max_open_time
       FROM deduplicated`);
-    return { ...prepared, ...(rows[0] ?? { row_count: 0 }) };
+    const row = rows[0];
+    return {
+      ...prepared,
+      rowCount: Number(row?.['row_count'] ?? 0),
+      minOpenTime: this.optionalText(row?.['min_open_time']) ?? null,
+      maxOpenTime: this.optionalText(row?.['max_open_time']) ?? null,
+    };
   }
 
   public async close(): Promise<void> {
@@ -263,7 +271,7 @@ export class WarehouseService {
         if (request.profile === 'parquet')
           throw new Error('ZIP archives cannot use profile=parquet.');
         extractedDirectory = mkdtempSync(join(this.tempRoot, 'extract-'));
-        dataPath = this.extractCsv(inputPath, extractedDirectory, request.zipEntry);
+        dataPath = await this.extractCsv(inputPath, extractedDirectory, request.zipEntry);
       }
 
       const dataExtension = extname(dataPath).toLowerCase();
@@ -292,11 +300,10 @@ export class WarehouseService {
     importId: string,
   ): Promise<void> {
     const importedAt = new Date().toISOString();
-    // Binance Spot archives switched from milliseconds to microseconds in 2025.
-    // Convert both units through Unix seconds; CAST removes the timezone wrapper.
+    // Binance archives may use milliseconds or microseconds; normalize to UTC.
     const timeExpression = (column: string) =>
-      `CAST(to_timestamp(CASE WHEN abs(${column}) >= 100000000000000 ` +
-      `THEN ${column} / 1000000.0 ELSE ${column} / 1000.0 END) AS TIMESTAMP)`;
+      `timezone('UTC', to_timestamp(CASE WHEN abs(${column}) >= 100000000000000 ` +
+      `THEN ${column} / 1000000.0 ELSE ${column} / 1000.0 END))`;
     const sql = `
       COPY (
         SELECT
@@ -341,34 +348,65 @@ export class WarehouseService {
       ) TO ${sqlString(outputPath)} (FORMAT PARQUET, COMPRESSION ZSTD)`);
   }
 
-  private extractCsv(zipPath: string, destinationDirectory: string, selectedName?: string): string {
-    const zip = new AdmZip(zipPath);
-    const entries = zip
-      .getEntries()
-      .filter((entry) => !entry.isDirectory && entry.entryName.toLowerCase().endsWith('.csv'));
-    const entry =
-      selectedName === undefined
-        ? entries.length === 1
-          ? entries[0]
-          : undefined
-        : entries.find((candidate) => candidate.entryName === selectedName);
-    if (entry === undefined) {
-      throw new Error(
-        selectedName === undefined
-          ? `ZIP must contain exactly one CSV file; found ${entries.length}. Use zipEntry to select one.`
-          : `ZIP entry was not found or is not a CSV file: ${selectedName}`,
-      );
+  private async extractCsv(
+    zipPath: string,
+    destinationDirectory: string,
+    selectedName?: string,
+  ): Promise<string> {
+    const zip = await yauzl.openPromise(zipPath, {
+      autoClose: false,
+      lazyEntries: true,
+      validateEntrySizes: true,
+    });
+    try {
+      let selected: yauzl.Entry | undefined;
+      let csvCount = 0;
+      for await (const entry of zip.eachEntry()) {
+        if (entry.fileName.endsWith('/') || !entry.fileName.toLowerCase().endsWith('.csv'))
+          continue;
+        if (selectedName !== undefined) {
+          if (entry.fileName === selectedName) {
+            selected = entry;
+            break;
+          }
+          continue;
+        }
+        csvCount += 1;
+        selected = entry;
+      }
+      if (selected === undefined || (selectedName === undefined && csvCount !== 1)) {
+        throw new Error(
+          selectedName === undefined
+            ? `ZIP must contain exactly one CSV file; found ${csvCount}. Use zipEntry to select one.`
+            : `ZIP entry was not found or is not a CSV file: ${selectedName}`,
+        );
+      }
+      if (selected.uncompressedSize > this.config.WAREHOUSE_MAX_IMPORT_BYTES) {
+        throw new Error('Uncompressed ZIP entry exceeds WAREHOUSE_MAX_IMPORT_BYTES.');
+      }
+      if (!selected.canDecodeFileData()) {
+        throw new Error('ZIP entry uses an unsupported compression or encryption method.');
+      }
+
+      const input = await zip.openReadStreamPromise(selected);
+      const outputPath = join(destinationDirectory, basename(selected.fileName));
+      const maxImportBytes = this.config.WAREHOUSE_MAX_IMPORT_BYTES;
+      let extractedBytes = 0;
+      const byteLimit = new Transform({
+        transform(chunk: Buffer, _encoding, callback) {
+          extractedBytes += chunk.length;
+          if (extractedBytes > maxImportBytes) {
+            callback(new Error('Uncompressed ZIP entry exceeds WAREHOUSE_MAX_IMPORT_BYTES.'));
+            return;
+          }
+          callback(null, chunk);
+        },
+      });
+      await pipeline(input, byteLimit, createWriteStream(outputPath, { flags: 'wx' }));
+      return outputPath;
+    } finally {
+      zip.close();
     }
-    if (entry.header.size > this.config.WAREHOUSE_MAX_IMPORT_BYTES) {
-      throw new Error('Uncompressed ZIP entry exceeds WAREHOUSE_MAX_IMPORT_BYTES.');
-    }
-    const data = entry.getData();
-    if (data.length > this.config.WAREHOUSE_MAX_IMPORT_BYTES) {
-      throw new Error('Uncompressed ZIP entry exceeds WAREHOUSE_MAX_IMPORT_BYTES.');
-    }
-    const outputPath = join(destinationDirectory, basename(entry.entryName));
-    writeFileSync(outputPath, data, { flag: 'wx' });
-    return outputPath;
   }
 
   private async inspectParquetFiles(
