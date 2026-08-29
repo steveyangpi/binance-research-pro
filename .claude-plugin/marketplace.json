@@ -1,0 +1,15 @@
+{
+  "name": "binance-research-pro-marketplace",
+  "description": "Private Binance research plugins for Claude Code.",
+  "owner": {
+    "name": "Sai",
+    "url": "https://github.com/steveyangpi"
+  },
+  "plugins": [
+    {
+      "name": "binance-research-pro",
+      "source": "./",
+      "description": "Private Binance Spot, USD-M Futures and historical market research workflows."
+    }
+  ]
+}

@@ -41,6 +41,17 @@ claude --plugin-dir .\
 npm run check:claude-plugin
 ```
 
+### 通过 Claude Code Marketplace 安装
+
+仓库提供 `.claude-plugin/marketplace.json`，使插件可以从 GitHub Marketplace 发现并安装，而不必使用本地路径：
+
+```powershell
+claude plugin marketplace add steveyangpi/binance-research-pro
+claude plugin install binance-research-pro@binance-research-pro-marketplace
+```
+
+Marketplace 指向本仓库根目录，因此安装的插件使用相同的 `.claude-plugin/plugin.json`、`skills/` 和 `claude.mcp.json`。由于 MCP Server 是私有 GitHub Packages 制品，每台宿主机仍需完成第 1 节的 npm 注册表身份验证。
+
 不要把 `packages/mcp` 注册为插件源。清单和客户端专用 MCP 适配层均位于仓库根目录。
 
 ## 4. 配置可选宿主状态

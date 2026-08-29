@@ -41,6 +41,17 @@ Validate the same directory before relying on it:
 npm run check:claude-plugin
 ```
 
+### Install via Claude Code Marketplace
+
+The repository ships `.claude-plugin/marketplace.json` so the plugin can be discovered and installed from a GitHub marketplace instead of a local path:
+
+```powershell
+claude plugin marketplace add steveyangpi/binance-research-pro
+claude plugin install binance-research-pro@binance-research-pro-marketplace
+```
+
+The marketplace points at this repository root, so the installed plugin uses the same `.claude-plugin/plugin.json`, `skills/`, and `claude.mcp.json`. Because the MCP server is a private GitHub Packages artifact, each host still needs the npm registry authentication from section 1.
+
 Never register `packages/mcp` as a plugin source. The manifests and client-specific MCP adapters live at the repository root.
 
 ## 4. Configure optional host state

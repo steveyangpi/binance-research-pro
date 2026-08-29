@@ -1,12 +1,12 @@
 {
   "name": "@steveyangpi/binance-research-pro-mcp",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@steveyangpi/binance-research-pro-mcp",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "license": "UNLICENSED",
       "dependencies": {
         "@duckdb/node-api": "1.5.5-r.4",
