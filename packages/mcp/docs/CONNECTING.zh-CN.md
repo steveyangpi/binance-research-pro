@@ -14,7 +14,7 @@
 插件与跨机器部署使用固定版本，避免依赖源码仓库的绝对路径：
 
 ```powershell
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.6 -- binance-research-pro-mcp
 ```
 
 首次启动由 npx 下载并缓存私有包；请先配置 `@steveyangpi` GitHub Packages 注册表和身份验证。后续启动复用 npm 缓存，升级必须显式修改版本号并重新验证。
@@ -22,8 +22,8 @@ npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research
 仅当对应插件未安装时，才将其注册为独立 Codex 或 Claude Code MCP：
 
 ```powershell
-codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
-claude mcp add --scope local binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
+codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.6 -- binance-research-pro-mcp
+claude mcp add --scope local binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.6 -- binance-research-pro-mcp
 ```
 
 仓库插件适配层会分别通过 Codex 的 `.mcp.json` 和 Claude Code 的 `claude.mcp.json` 启动同一服务，因此不需要重复注册独立 MCP。
@@ -33,7 +33,7 @@ claude mcp add --scope local binance-research-pro -- npx -y --package=@steveyang
 ```toml
 [mcp_servers.binance-research-pro]
 command = "npx"
-args = ["-y", "--package=@steveyangpi/binance-research-pro-mcp@0.4.5", "--", "binance-research-pro-mcp"]
+args = ["-y", "--package=@steveyangpi/binance-research-pro-mcp@0.4.6", "--", "binance-research-pro-mcp"]
 startup_timeout_sec = 60
 tool_timeout_sec = 30
 enabled = true
@@ -59,7 +59,7 @@ Codex Desktop、CLI 和 IDE 扩展共享 Codex MCP 配置。修改后新建任�
       "command": "npx",
       "args": [
         "-y",
-        "--package=@steveyangpi/binance-research-pro-mcp@0.4.5",
+        "--package=@steveyangpi/binance-research-pro-mcp@0.4.6",
         "--",
         "binance-research-pro-mcp"
       ],

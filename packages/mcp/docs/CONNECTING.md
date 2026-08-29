@@ -14,7 +14,7 @@
 Plugins and cross-machine deployments should use a fixed version instead of a source-tree path:
 
 ```powershell
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.6 -- binance-research-pro-mcp
 ```
 
 npx downloads and caches the private package on first launch. Configure the `@steveyangpi` GitHub Packages registry and authentication first. Upgrades are explicit version changes and must be revalidated.
@@ -22,8 +22,8 @@ npx downloads and caches the private package on first launch. Configure the `@st
 Register it as a standalone Codex or Claude Code MCP only when the corresponding plugin is not installed:
 
 ```powershell
-codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
-claude mcp add --scope local binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
+codex mcp add binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.6 -- binance-research-pro-mcp
+claude mcp add --scope local binance-research-pro -- npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.6 -- binance-research-pro-mcp
 ```
 
 The repository plugin adapters already launch this server through `.mcp.json` for Codex and `claude.mcp.json` for Claude Code, so duplicate standalone registrations are unnecessary.
@@ -33,7 +33,7 @@ User-level `~/.codex/config.toml` example:
 ```toml
 [mcp_servers.binance-research-pro]
 command = "npx"
-args = ["-y", "--package=@steveyangpi/binance-research-pro-mcp@0.4.5", "--", "binance-research-pro-mcp"]
+args = ["-y", "--package=@steveyangpi/binance-research-pro-mcp@0.4.6", "--", "binance-research-pro-mcp"]
 startup_timeout_sec = 60
 tool_timeout_sec = 30
 enabled = true
@@ -59,7 +59,7 @@ Codex Desktop, CLI, and IDE share the Codex MCP configuration. Start a new task 
       "command": "npx",
       "args": [
         "-y",
-        "--package=@steveyangpi/binance-research-pro-mcp@0.4.5",
+        "--package=@steveyangpi/binance-research-pro-mcp@0.4.6",
         "--",
         "binance-research-pro-mcp"
       ],

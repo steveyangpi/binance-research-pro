@@ -62,7 +62,7 @@
 ```powershell
 npm config set @steveyangpi:registry https://npm.pkg.github.com
 npm login --scope=@steveyangpi --auth-type=legacy --registry=https://npm.pkg.github.com
-npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.5 -- binance-research-pro-mcp
+npx -y --package=@steveyangpi/binance-research-pro-mcp@0.4.6 -- binance-research-pro-mcp
 ```
 
 该命令是 stdio server，会等待 MCP JSON-RPC 输入。未设置 `BINANCE_ACCOUNT_PROFILES_PATH` 时，账户工具返回“未配置”，公共工具和仓库工具仍可使用。凭据必须保存在仓库外受保护的文件中。设置 `BINANCE_RESEARCH_DATA_DIR` 可迁移本地缓存与仓库。详见仓库的[安装指南](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/INSTALLATION.zh-CN.md)和[账户访问指南](https://github.com/steveyangpi/binance-research-pro/blob/main/docs/ACCOUNT-ACCESS.zh-CN.md)。
