@@ -28,22 +28,23 @@ Set `BINANCE_RESEARCH_DATA_DIR` to move the complete layout. `warehouse_status` 
 
 ## Environment variables
 
-| Variable                           | Default                    | Purpose                                           |
-| ---------------------------------- | -------------------------- | ------------------------------------------------- |
-| `BINANCE_RESEARCH_DATA_DIR`        | OS user data directory     | Root for all stateful data.                       |
-| `BINANCE_REST_BASE_URL`            | `https://api.binance.com`  | Public Spot REST base URL.                        |
-| `BINANCE_FUTURES_REST_BASE_URL`    | `https://fapi.binance.com` | Public USDⓈ-M Futures REST base URL.              |
-| `BINANCE_ACCOUNT_PROFILES_PATH`    | unset                      | External Ed25519 USER_DATA profile file.          |
-| `BINANCE_ACCOUNT_RECV_WINDOW_MS`   | `5000`                     | Signed-request window, maximum 60000 ms.          |
-| `BINANCE_REQUEST_TIMEOUT_MS`       | `10000`                    | HTTP timeout, up to 60000 ms.                     |
-| `BINANCE_CACHE_TTL_MS`             | `15000`                    | Ticker, mark price, book, and open-interest TTL.  |
-| `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | Candle TTL.                                       |
-| `BINANCE_FUNDING_CACHE_TTL_MS`     | `600000`                   | Funding-history TTL.                              |
-| `BINANCE_PERSISTENT_CACHE_ENABLED` | `true`                     | Use only memory when `false`.                     |
-| `BINANCE_CACHE_MAX_ENTRIES`        | `10000`                    | Maximum SQLite cache entries.                     |
-| `WAREHOUSE_ENABLED`                | `true`                     | Do not register `warehouse_*` tools when `false`. |
-| `WAREHOUSE_MAX_IMPORT_BYTES`       | `536870912`                | Download, input, or extracted CSV size limit.     |
-| `WAREHOUSE_DOWNLOAD_TIMEOUT_MS`    | `120000`                   | HTTPS download timeout.                           |
+| Variable                           | Default                    | Purpose                                              |
+| ---------------------------------- | -------------------------- | ---------------------------------------------------- |
+| `BINANCE_RESEARCH_DATA_DIR`        | OS user data directory     | Root for all stateful data.                          |
+| `BINANCE_REST_BASE_URL`            | `https://api.binance.com`  | Public Spot REST base URL.                           |
+| `BINANCE_FUTURES_REST_BASE_URL`    | `https://fapi.binance.com` | Public USDⓈ-M Futures REST base URL.                 |
+| `BINANCE_ACCOUNT_PROFILES_PATH`    | unset                      | External Ed25519 USER_DATA profile file.             |
+| `BINANCE_ACCOUNT_RECV_WINDOW_MS`   | `5000`                     | Signed-request window, maximum 60000 ms.             |
+| `BINANCE_REQUEST_TIMEOUT_MS`       | `10000`                    | HTTP timeout, up to 60000 ms.                        |
+| `BINANCE_CACHE_TTL_MS`             | `15000`                    | Ticker, mark price, book, and open-interest TTL.     |
+| `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | Candle TTL.                                          |
+| `BINANCE_FUNDING_CACHE_TTL_MS`     | `600000`                   | Funding-history TTL.                                 |
+| `BINANCE_PERSISTENT_CACHE_ENABLED` | `true`                     | Use only memory when `false`.                        |
+| `BINANCE_CACHE_MAX_ENTRIES`        | `10000`                    | Maximum SQLite cache entries.                        |
+| `WAREHOUSE_ENABLED`                | `true`                     | Do not register `warehouse_*` tools when `false`.    |
+| `WAREHOUSE_MAX_IMPORT_BYTES`       | `536870912`                | Download, input, or extracted CSV size limit.        |
+| `WAREHOUSE_DOWNLOAD_TIMEOUT_MS`    | `120000`                   | HTTPS download timeout.                              |
+| `WAREHOUSE_DUCKDB_MEMORY_LIMIT`    | unset                      | DuckDB memory ceiling such as `1GB`; spills past it. |
 
 Advanced path variables override values derived from the root:
 

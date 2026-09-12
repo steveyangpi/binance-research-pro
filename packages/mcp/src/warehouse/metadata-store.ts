@@ -4,7 +4,9 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   CandleSelection,
   ImportCompletion,
+  ImportProfile,
   ImportedParquetFile,
+  TapeFileWindow,
   WarehouseFileFilter,
   WarehouseImportRequest,
 } from './types.js';
@@ -37,6 +39,11 @@ function importOptionsKey(identity: ImportIdentity): string {
     hasHeader: identity.hasHeader ?? null,
     zipEntry: identity.zipEntry ?? null,
   });
+}
+
+/** Format an ISO instant the way DuckDB renders a naive UTC timestamp column. */
+function utcSecond(value: string): string {
+  return new Date(value).toISOString().slice(0, 19).replace('T', ' ');
 }
 
 export class WarehouseMetadataStore {
@@ -272,6 +279,7 @@ export class WarehouseMetadataStore {
     for (const [column, value] of [
       ['dataset', filter.dataset],
       ['source', filter.source],
+      ['market', filter.market],
       ['symbol', filter.symbol],
       ['interval', filter.interval],
     ] as const) {
@@ -302,6 +310,39 @@ export class WarehouseMetadataStore {
         where.push(`${column} = ?`);
         values.push(value);
       }
+    }
+    const rows = this.database
+      .prepare(`SELECT path FROM parquet_files WHERE ${where.join(' AND ')} ORDER BY path`)
+      .all(...values) as Array<{ path: string }>;
+    return rows.map((row) => row.path);
+  }
+
+  /**
+   * Select tapes and series by market and, when a window is given, by file time overlap.
+   * Pruning at file granularity beats the year/month axis: a one-day query would
+   * otherwise read every file in the month.
+   */
+  public seriesFiles(
+    profile: ImportProfile,
+    selection: { dataset: string; market: string; symbol: string; source?: string },
+    window: TapeFileWindow,
+  ): string[] {
+    const where = ['profile = ?', 'dataset = ?', 'market = ?', 'symbol = ?'];
+    const values: string[] = [profile, selection.dataset, selection.market, selection.symbol];
+    if (selection.source !== undefined) {
+      where.push('source = ?');
+      values.push(selection.source);
+    }
+    // Stored bounds look like `YYYY-MM-DD HH:MM:SS[.ffffff]` in UTC. Comparing the
+    // first 19 characters keeps a fractional bound from excluding a matching file,
+    // so truncation can only widen the candidate set, never drop a needed file.
+    if (window.startTime !== undefined) {
+      where.push('(max_event_time IS NULL OR substr(max_event_time, 1, 19) >= ?)');
+      values.push(utcSecond(window.startTime));
+    }
+    if (window.endTime !== undefined) {
+      where.push('(min_event_time IS NULL OR substr(min_event_time, 1, 19) <= ?)');
+      values.push(utcSecond(window.endTime));
     }
     const rows = this.database
       .prepare(`SELECT path FROM parquet_files WHERE ${where.join(' AND ')} ORDER BY path`)

@@ -49,6 +49,13 @@ const environmentSchema = z.object({
     .positive()
     .max(10 * 60_000)
     .default(120_000),
+  WAREHOUSE_DUCKDB_MEMORY_LIMIT: z
+    .string()
+    .trim()
+    .regex(/^\d+(\.\d+)?\s?(B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)$/i, {
+      message: 'WAREHOUSE_DUCKDB_MEMORY_LIMIT must look like 512MB or 2GiB.',
+    })
+    .optional(),
 });
 
 type ParsedEnvironment = z.infer<typeof environmentSchema>;

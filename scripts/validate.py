@@ -19,6 +19,7 @@ EXPECTED_SKILLS = {
     "binance-market-research",
     "binance-derivatives-research",
     "binance-historical-research",
+    "binance-order-flow-research",
     "binance-risk-review",
 }
 MCP_PACKAGE = ROOT / "packages" / "mcp" / "package.json"
@@ -42,6 +43,7 @@ EXPECTED_ENV_VARS = {
     "WAREHOUSE_IMPORT_ROOTS",
     "WAREHOUSE_MAX_IMPORT_BYTES",
     "WAREHOUSE_DOWNLOAD_TIMEOUT_MS",
+    "WAREHOUSE_DUCKDB_MEMORY_LIMIT",
 }
 FORBIDDEN_ENV_VARS = {"BINANCE_API_KEY", "BINANCE_API_SECRET"}
 REQUIRED_FILES = {

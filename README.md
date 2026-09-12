@@ -20,7 +20,7 @@ Plugin Skills, MCP tool schemas, tests, and documentation evolve together. Keepi
 .claude-plugin/plugin.json      Claude Code plugin manifest
 .mcp.json                       Codex MCP launch configuration
 claude.mcp.json                 Claude Code MCP launch configuration
-skills/                         Shared Spot, derivatives, history, and risk workflows
+skills/                         Shared Spot, derivatives, history, order flow, and risk workflows
 packages/mcp/                   TypeScript MCP npm workspace
 scripts/                        Cross-deliverable validation
 docs/                           Architecture, development, release, and security
@@ -72,6 +72,7 @@ Public endpoints and cache settings have safe defaults. Override them with host 
 | `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | Candle cache TTL.                        |
 | `BINANCE_PERSISTENT_CACHE_ENABLED` | `true`                     | `false` uses memory-only caching.        |
 | `WAREHOUSE_ENABLED`                | `true`                     | `false` hides warehouse tools.           |
+| `WAREHOUSE_DUCKDB_MEMORY_LIMIT`    | unset                      | DuckDB memory ceiling such as `1GB`.     |
 
 Set one root to move all cache and warehouse state without hard-coding a machine path:
 

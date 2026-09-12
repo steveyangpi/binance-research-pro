@@ -35,7 +35,7 @@ Codex 插件                          Claude Code 插件
 - 账户读取层：按隔离 Profile ID 选择签名的 Spot 与 USD-M `USER_DATA` GET endpoint；响应不缓存、不持久化。
 - 短期缓存：合并并发请求并应用短 TTL。
 - 持久缓存：便携数据目录下的可选 SQLite 缓存。
-- 历史仓库：DuckDB 元数据与分区 Parquet；导入源必须位于允许的本地根目录或通过 HTTPS 校验。
+- 历史仓库：DuckDB 元数据与分区 Parquet，支持 K 线以及 Binance 逐笔数据集（`trades`、`aggtrades`）；导入源必须位于允许的本地根目录或通过 HTTPS 校验。
 
 ## 信任边界
 

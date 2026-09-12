@@ -192,6 +192,17 @@ describe('MCP tool registration contracts', () => {
         interval: '1h',
         limit: 500,
       },
+      warehouse_query_trades: {
+        dataset: 'trades',
+        market: 'spot',
+        symbol: 'BTCUSDT',
+        limit: 500,
+      },
+      warehouse_query_series: {
+        dataset: 'metrics',
+        symbol: 'BTCUSDT',
+        limit: 500,
+      },
       warehouse_data_range: { dataset: 'candles', symbol: 'BTCUSDT', interval: '1h' },
     });
 
@@ -202,8 +213,34 @@ describe('MCP tool registration contracts', () => {
       'listDatasets',
       'listFiles',
       'queryCandles',
+      'queryTrades',
+      'querySeries',
       'candleDataRange',
     ]);
+  });
+
+  it('routes warehouse_data_range requests for tape datasets and validates both branches', async () => {
+    const capture = new ToolCapture();
+    const calls: Array<[string, unknown[]]> = [];
+    const service = trackedService(calls) as Record<string, (...arguments_: unknown[]) => unknown>;
+    registerWarehouseTools(capture as unknown as McpServer, service as unknown as WarehouseService);
+
+    await invokeAll(capture, {
+      warehouse_data_range: { dataset: 'aggtrades', market: 'um', symbol: 'BTCUSDT' },
+    });
+    expect(calls.map(([name]) => name)).toEqual(['tapeDataRange']);
+    expect(calls[0]?.[1]).toEqual([{ dataset: 'aggtrades', market: 'um', symbol: 'BTCUSDT' }]);
+
+    const rangeHandler = capture.handlers.get('warehouse_data_range')!;
+    await expect(rangeHandler({ dataset: 'candles', symbol: 'BTCUSDT' })).resolves.toMatchObject({
+      isError: true,
+    });
+    await expect(rangeHandler({ dataset: 'trades', symbol: 'BTCUSDT' })).resolves.toMatchObject({
+      isError: true,
+    });
+    await expect(
+      rangeHandler({ dataset: 'trades', market: 'spot', symbol: 'BTCUSDT', interval: '1h' }),
+    ).resolves.toMatchObject({ isError: true });
   });
 
   it('converts service failures to MCP tool errors', async () => {

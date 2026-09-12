@@ -30,15 +30,57 @@ import type {
   CandleQuery,
   CandleSelection,
   ImportCompletion,
+  ImportProfile,
   ImportedParquetFile,
+  SeriesDataset,
+  SeriesQuery,
+  SeriesSelection,
+  TapeDataset,
+  TapeFileWindow,
+  TapeMarket,
+  TapeQuery,
+  TapeSelection,
   WarehouseFileFilter,
   WarehouseImportFileRequest,
   WarehouseImportRequest,
   WarehouseImportUrlRequest,
 } from './types.js';
+import {
+  SERIES_PROFILE_FOR_DATASET,
+  TAPE_PROFILE_FOR_DATASET,
+  isSeriesDataset,
+  isTapeDataset,
+  isTapeMarket,
+  seriesDatasetForProfile,
+  tapeDatasetForProfile,
+} from './types.js';
 
 type PreparedImport = WarehouseImportRequest & {
   checksumSha256: string;
+};
+
+type PreparedTapeSelection = TapeSelection & {
+  dataset: TapeDataset;
+  market: TapeMarket;
+};
+
+type PreparedSeriesSelection = SeriesSelection & {
+  dataset: SeriesDataset;
+  market: 'um';
+};
+
+type TapeQueryMode = 'rows' | 'buckets' | 'prices';
+
+type TapeVariant = {
+  /** Binance writes a header row for USD-M files and none for Spot files. */
+  header: boolean;
+  /** read_csv columns struct; the order must match the file exactly. */
+  columns: string;
+  timeColumn: string;
+  /** Projection before event_time, aliasing source names onto the shared schema. */
+  leading: string;
+  /** Projection after event_time, including columns absent from this market. */
+  trailing: string;
 };
 
 const BINANCE_KLINE_COLUMNS = `{
@@ -55,6 +97,144 @@ const BINANCE_KLINE_COLUMNS = `{
   'taker_buy_quote_asset_volume': 'DOUBLE',
   'ignore': 'VARCHAR'
 }`;
+
+/**
+ * Binance batch CSVs read booleans as `False`/`True` on Spot and `true`/`false` on
+ * USD-M. Read the column as text and map it explicitly rather than trusting inference.
+ */
+const booleanExpression = (column: string) =>
+  `CASE WHEN lower(${column}) IN ('true','1') THEN true ` +
+  `WHEN lower(${column}) IN ('false','0') THEN false END`;
+
+const tapeTimeExpression = (column: string) =>
+  `timezone('UTC', to_timestamp(CASE WHEN abs(${column}) >= 100000000000000 ` +
+  `THEN ${column} / 1000000.0 ELSE ${column} / 1000.0 END))`;
+
+/**
+ * One entry per dataset x market. The `columns` struct is positional, so each variant
+ * must list exactly the file's columns in order: spot trades 7, um trades 6,
+ * spot aggTrades 8, um aggTrades 7. Those counts are distinct, which makes a
+ * mislabelled market fail loudly instead of importing the wrong data.
+ */
+const TAPE_VARIANTS: Record<TapeDataset, Record<TapeMarket, TapeVariant>> = {
+  trades: {
+    spot: {
+      header: false,
+      columns:
+        `{'tradeId':'BIGINT','price':'DOUBLE','qty':'DOUBLE','quoteQty':'DOUBLE',` +
+        `'time':'BIGINT','isBuyerMaker':'VARCHAR','isBestMatch':'VARCHAR'}`,
+      timeColumn: 'time',
+      leading: 'tradeId AS trade_id, price, qty, quoteQty AS quote_qty',
+      trailing:
+        `${booleanExpression('isBuyerMaker')} AS is_buyer_maker, ` +
+        `${booleanExpression('isBestMatch')} AS is_best_match`,
+    },
+    um: {
+      header: true,
+      columns:
+        `{'id':'BIGINT','price':'DOUBLE','qty':'DOUBLE','quote_qty':'DOUBLE',` +
+        `'time':'BIGINT','is_buyer_maker':'VARCHAR'}`,
+      timeColumn: 'time',
+      leading: 'id AS trade_id, price, qty, quote_qty',
+      trailing:
+        `${booleanExpression('is_buyer_maker')} AS is_buyer_maker, ` +
+        `NULL::BOOLEAN AS is_best_match`,
+    },
+  },
+  aggtrades: {
+    spot: {
+      header: false,
+      columns:
+        `{'aggTradeId':'BIGINT','price':'DOUBLE','qty':'DOUBLE','firstTradeId':'BIGINT',` +
+        `'lastTradeId':'BIGINT','time':'BIGINT','isBuyerMaker':'VARCHAR','isBestMatch':'VARCHAR'}`,
+      timeColumn: 'time',
+      leading:
+        'aggTradeId AS agg_trade_id, price, qty, firstTradeId AS first_trade_id, ' +
+        'lastTradeId AS last_trade_id',
+      // Binance publishes no quote quantity for aggregate trades; leave it NULL rather
+      // than inventing a value the source does not carry.
+      trailing:
+        `NULL::DOUBLE AS quote_qty, ` +
+        `${booleanExpression('isBuyerMaker')} AS is_buyer_maker, ` +
+        `${booleanExpression('isBestMatch')} AS is_best_match`,
+    },
+    um: {
+      header: true,
+      columns:
+        `{'agg_trade_id':'BIGINT','price':'DOUBLE','quantity':'DOUBLE',` +
+        `'first_trade_id':'BIGINT','last_trade_id':'BIGINT','transact_time':'BIGINT',` +
+        `'is_buyer_maker':'VARCHAR'}`,
+      timeColumn: 'transact_time',
+      leading: 'agg_trade_id, price, quantity AS qty, first_trade_id, last_trade_id',
+      trailing:
+        `NULL::DOUBLE AS quote_qty, ` +
+        `${booleanExpression('is_buyer_maker')} AS is_buyer_maker, ` +
+        `NULL::BOOLEAN AS is_best_match`,
+    },
+  },
+};
+
+/** Spot and USD-M trade IDs are independent sequences; the market is part of the key. */
+const TAPE_PRIMARY_KEYS: Record<TapeDataset, string> = {
+  trades: 'trade_id',
+  aggtrades: 'agg_trade_id',
+};
+
+/**
+ * Snapshot datasets. Their source timestamp is a naive UTC string (`2026-08-01 00:00:00`),
+ * not an epoch number, so the magnitude heuristic used for Klines and tape does not apply
+ * and the column is cast directly. Both are stored under the shared `event_time` name.
+ */
+type SeriesVariant = {
+  timeColumn: string;
+  /** Dedup key columns beyond (market, symbol, event_time). */
+  keyColumns: readonly string[];
+  /** read_csv columns struct; the order must match the file exactly. */
+  columns: string;
+  projection: string;
+  /** Numeric columns that bucketed queries aggregate per bucket. */
+  valueColumns: readonly string[];
+};
+
+const SERIES_VARIANTS: Record<SeriesDataset, SeriesVariant> = {
+  metrics: {
+    timeColumn: 'create_time',
+    keyColumns: [],
+    columns:
+      `{'create_time':'VARCHAR','symbol':'VARCHAR','sum_open_interest':'DOUBLE',` +
+      `'sum_open_interest_value':'DOUBLE','count_toptrader_long_short_ratio':'DOUBLE',` +
+      `'sum_toptrader_long_short_ratio':'DOUBLE','count_long_short_ratio':'DOUBLE',` +
+      `'sum_taker_long_short_vol_ratio':'DOUBLE'}`,
+    // The source `symbol` column is redundant with the partition value and is dropped.
+    projection:
+      'CAST(create_time AS TIMESTAMP) AS event_time, sum_open_interest, ' +
+      'sum_open_interest_value, count_toptrader_long_short_ratio, ' +
+      'sum_toptrader_long_short_ratio, count_long_short_ratio, ' +
+      'sum_taker_long_short_vol_ratio',
+    valueColumns: [
+      'sum_open_interest',
+      'sum_open_interest_value',
+      'count_toptrader_long_short_ratio',
+      'sum_toptrader_long_short_ratio',
+      'count_long_short_ratio',
+      'sum_taker_long_short_vol_ratio',
+    ],
+  },
+  bookdepth: {
+    timeColumn: 'timestamp',
+    keyColumns: ['percentage'],
+    columns: `{'timestamp':'VARCHAR','percentage':'DOUBLE','depth':'DOUBLE','notional':'DOUBLE'}`,
+    projection: 'CAST(timestamp AS TIMESTAMP) AS event_time, percentage, depth, notional',
+    valueColumns: ['depth', 'notional'],
+  },
+};
+
+function timeColumnForProfile(profile: ImportProfile): string | undefined {
+  if (profile === 'binance-kline') return 'open_time';
+  if (tapeDatasetForProfile(profile) !== undefined) return 'event_time';
+  if (seriesDatasetForProfile(profile) !== undefined) return 'event_time';
+  return undefined;
+}
 
 /**
  * Owns the warehouse write queue. DuckDB can parallelize a query internally,
@@ -76,7 +256,14 @@ export class WarehouseService {
     mkdirSync(this.tempRoot, { recursive: true });
     for (const root of this.importRoots) mkdirSync(root, { recursive: true });
     this.metadata = new WarehouseMetadataStore(config.WAREHOUSE_METADATA_DB_PATH);
-    this.instance = DuckDBInstance.create(':memory:');
+    // temp_directory and memory_limit are instance-wide in DuckDB, so setting them once
+    // here covers every short-lived connection this service opens for imports and queries.
+    this.instance = DuckDBInstance.create(':memory:', {
+      temp_directory: this.tempRoot,
+      ...(config.WAREHOUSE_DUCKDB_MEMORY_LIMIT === undefined
+        ? {}
+        : { memory_limit: config.WAREHOUSE_DUCKDB_MEMORY_LIMIT }),
+    });
   }
 
   public importFile(request: WarehouseImportFileRequest): Promise<ImportCompletion> {
@@ -184,6 +371,141 @@ export class WarehouseService {
     };
   }
 
+  /**
+   * Row-level tape query, bucketed aggregation when `bucketSeconds` is set, or per-price
+   * aggregation when `groupBy` is `'price'`.
+   */
+  public async queryTrades(query: TapeQuery): Promise<unknown[]> {
+    const prepared = this.prepareTapeSelection(query);
+    if (query.groupBy !== undefined && query.groupBy !== 'price') {
+      throw new Error("groupBy only accepts 'price'.");
+    }
+    const bucketSeconds = query.bucketSeconds;
+    if (query.groupBy === 'price') {
+      if (bucketSeconds === undefined) {
+        throw new Error(
+          'groupBy=price requires bucketSeconds; without it the result is every price ' +
+            'level over the whole window.',
+        );
+      }
+      this.validateTapeFilters(prepared, query, 'prices');
+      return this.queryTapePrices(prepared, query, bucketSeconds);
+    }
+    if (bucketSeconds === undefined) {
+      this.validateTapeFilters(prepared, query, 'rows');
+      return this.queryTapeRows(prepared, query);
+    }
+    this.validateTapeFilters(prepared, query, 'buckets');
+    return this.queryTapeBuckets(prepared, query, bucketSeconds);
+  }
+
+  public async tapeDataRange(selection: TapeSelection): Promise<Record<string, unknown>> {
+    const prepared = this.prepareTapeSelection(selection);
+    const files = this.existingTapeFiles(prepared, {});
+    if (files.length === 0) {
+      return { ...prepared, rowCount: 0, minEventTime: null, maxEventTime: null };
+    }
+    const rows = await this.readRows(`
+      WITH deduplicated AS (
+        SELECT event_time, market
+        FROM read_parquet([${files.map(sqlString).join(', ')}], union_by_name = true)
+        QUALIFY row_number() OVER (
+          PARTITION BY market, ${TAPE_PRIMARY_KEYS[prepared.dataset]} ORDER BY imported_at DESC
+        ) = 1
+      )
+      SELECT COUNT(*) AS row_count, MIN(event_time) AS min_event_time,
+             MAX(event_time) AS max_event_time
+      FROM deduplicated`);
+    const row = rows[0];
+    return {
+      ...prepared,
+      rowCount: Number(row?.['row_count'] ?? 0),
+      minEventTime: this.optionalText(row?.['min_event_time']) ?? null,
+      maxEventTime: this.optionalText(row?.['max_event_time']) ?? null,
+    };
+  }
+
+  /**
+   * Snapshot series query. Row level by default; per-bucket averages when `bucketSeconds`
+   * is set. Bucket rows keep any extra key column (book depth keeps its percentage band),
+   * so aggregating never averages across bands.
+   */
+  public async querySeries(query: SeriesQuery): Promise<unknown[]> {
+    const prepared = this.prepareSeriesSelection(query);
+    const variant = SERIES_VARIANTS[prepared.dataset];
+    if (query.percentage !== undefined && prepared.dataset !== 'bookdepth') {
+      throw new Error('percentage is only available for the bookdepth dataset.');
+    }
+    const files = this.existingSeriesFiles(prepared, query);
+    if (files.length === 0) return [];
+
+    const conditions: string[] = [];
+    const values: Record<string, string> = {};
+    if (query.startTime !== undefined) {
+      conditions.push("event_time >= timezone('UTC', CAST($startTime AS TIMESTAMPTZ))");
+      values['startTime'] = query.startTime;
+    }
+    if (query.endTime !== undefined) {
+      conditions.push("event_time <= timezone('UTC', CAST($endTime AS TIMESTAMPTZ))");
+      values['endTime'] = query.endTime;
+    }
+    if (query.percentage !== undefined) {
+      if (!Number.isFinite(query.percentage)) {
+        throw new Error('percentage must be a finite number.');
+      }
+      conditions.push(`percentage = ${query.percentage}`);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    // Series rows carry no synthetic ID, so the natural key is the dedup key.
+    const dedupKey = ['market', 'symbol', 'event_time', ...variant.keyColumns].join(', ');
+    const fileList = files.map(sqlString).join(', ');
+    const selected = ['event_time', ...variant.keyColumns, ...variant.valueColumns].join(', ');
+
+    if (query.bucketSeconds === undefined) {
+      return this.readRows(
+        `SELECT ${selected}, dataset, source, market, symbol
+         FROM read_parquet([${fileList}], union_by_name = true)
+         ${where}
+         QUALIFY row_number() OVER (PARTITION BY ${dedupKey} ORDER BY imported_at DESC) = 1
+         ORDER BY event_time DESC
+         LIMIT ${query.limit}`,
+        values,
+      );
+    }
+
+    const aggregates = variant.valueColumns
+      .flatMap((column) => [
+        `avg(${column}) AS ${column}_avg`,
+        `min(${column}) AS ${column}_min`,
+        `max(${column}) AS ${column}_max`,
+        `arg_max(${column}, event_time) AS ${column}_last`,
+      ])
+      .join(',\n             ');
+    const keySelect = variant.keyColumns.length > 0 ? `, ${variant.keyColumns.join(', ')}` : '';
+    const groupBy = ['1', ...variant.keyColumns.map((_, index) => String(index + 2))].join(', ');
+    const sql = `
+      WITH deduplicated AS (
+        SELECT ${selected}, market, symbol
+        FROM read_parquet([${fileList}], union_by_name = true)
+        ${where}
+        QUALIFY row_number() OVER (PARTITION BY ${dedupKey} ORDER BY imported_at DESC) = 1
+      )
+      SELECT time_bucket(INTERVAL '${query.bucketSeconds} seconds', event_time) AS bucket_start${keySelect},
+             ${aggregates}
+      FROM deduplicated
+      GROUP BY ${groupBy}
+      ORDER BY ${groupBy}
+      LIMIT ${query.limit + 1}`;
+    const rows = await this.readRows(sql, values);
+    if (rows.length > query.limit) {
+      throw new Error(
+        `Series query matched more than ${query.limit} rows. ` +
+          'Narrow startTime/endTime, raise bucketSeconds, or raise limit.',
+      );
+    }
+    return rows;
+  }
+
   public async close(): Promise<void> {
     this.metadata.close();
     (await this.instance).closeSync();
@@ -241,6 +563,43 @@ export class WarehouseService {
     if (request.profile === 'binance-kline' && (symbol === undefined || interval === undefined)) {
       throw new Error('binance-kline imports require symbol and interval.');
     }
+    if (tapeDatasetForProfile(request.profile) !== undefined) {
+      const expectedDataset = tapeDatasetForProfile(request.profile);
+      if (dataset !== expectedDataset) {
+        throw new Error(`${request.profile} imports require dataset '${expectedDataset}'.`);
+      }
+      if (market === undefined || symbol === undefined) {
+        throw new Error(`${request.profile} imports require market and symbol.`);
+      }
+      if (!isTapeMarket(market)) {
+        throw new Error(`${request.profile} imports require market 'spot' or 'um'.`);
+      }
+      if (interval !== undefined) {
+        throw new Error(`${request.profile} imports do not accept interval.`);
+      }
+      if (request.hasHeader !== undefined) {
+        throw new Error(`${request.profile} imports do not accept hasHeader.`);
+      }
+    }
+    const seriesDataset = seriesDatasetForProfile(request.profile);
+    if (seriesDataset !== undefined) {
+      if (dataset !== seriesDataset) {
+        throw new Error(`${request.profile} imports require dataset '${seriesDataset}'.`);
+      }
+      if (market === undefined || symbol === undefined) {
+        throw new Error(`${request.profile} imports require market and symbol.`);
+      }
+      // Binance publishes both series datasets for USD-M only.
+      if (market !== 'um') {
+        throw new Error(`${request.profile} imports require market 'um'.`);
+      }
+      if (interval !== undefined) {
+        throw new Error(`${request.profile} imports do not accept interval.`);
+      }
+      if (request.hasHeader !== undefined) {
+        throw new Error(`${request.profile} imports do not accept hasHeader.`);
+      }
+    }
     const checksumSha256 = await sha256File(inputPath);
     verifySha256(checksumSha256, request.expectedSha256);
     return {
@@ -284,10 +643,14 @@ export class WarehouseService {
 
       if (request.profile === 'binance-kline') {
         await this.writeBinanceKlines(dataPath, outputDirectory, request, importId);
+      } else if (tapeDatasetForProfile(request.profile) !== undefined) {
+        await this.writeBinanceTape(dataPath, outputDirectory, request, importId);
+      } else if (seriesDatasetForProfile(request.profile) !== undefined) {
+        await this.writeBinanceSeries(dataPath, outputDirectory, request, importId);
       } else {
         await this.writeGenericData(dataPath, outputDirectory, request, importId);
       }
-      return this.inspectParquetFiles(outputDirectory, request.profile === 'binance-kline');
+      return this.inspectParquetFiles(outputDirectory, timeColumnForProfile(request.profile));
     } finally {
       if (extractedDirectory !== undefined) this.removeTemporaryDirectory(extractedDirectory);
     }
@@ -324,6 +687,69 @@ export class WarehouseService {
         FROM read_csv(${sqlString(csvPath)}, header = false, columns = ${BINANCE_KLINE_COLUMNS},
                       strict_mode = true, null_padding = false)
         ORDER BY open_time
+      ) TO ${sqlString(outputDirectory)}
+        (FORMAT PARQUET, COMPRESSION ZSTD, PARTITION_BY (year, month))`;
+    await this.run(sql);
+  }
+
+  private async writeBinanceTape(
+    csvPath: string,
+    outputDirectory: string,
+    request: PreparedImport,
+    importId: string,
+  ): Promise<void> {
+    const dataset = tapeDatasetForProfile(request.profile);
+    const market = request.market === undefined ? undefined : request.market;
+    if (dataset === undefined || market === undefined || !isTapeMarket(market)) {
+      throw new Error('Tape conversion requires a validated dataset and market.');
+    }
+    const variant = TAPE_VARIANTS[dataset][market];
+    const sql = `
+      COPY (
+        SELECT
+          ${variant.leading},
+          ${tapeTimeExpression(variant.timeColumn)} AS event_time,
+          ${variant.trailing},
+          ${sqlString(request.dataset)} AS dataset,
+          ${sqlString(request.source)} AS source,
+          ${sqlString(market)} AS market,
+          ${sqlString(request.symbol ?? '')} AS symbol,
+          ${sqlString(importId)} AS import_id,
+          CAST(${sqlString(new Date().toISOString())} AS TIMESTAMPTZ) AS imported_at,
+          year(event_time) AS year,
+          month(event_time) AS month
+        FROM read_csv(${sqlString(csvPath)}, header = ${variant.header},
+                      columns = ${variant.columns}, strict_mode = true, null_padding = false)
+      ) TO ${sqlString(outputDirectory)}
+        (FORMAT PARQUET, COMPRESSION ZSTD, PARTITION_BY (year, month))`;
+    await this.run(sql);
+  }
+
+  private async writeBinanceSeries(
+    csvPath: string,
+    outputDirectory: string,
+    request: PreparedImport,
+    importId: string,
+  ): Promise<void> {
+    const dataset = seriesDatasetForProfile(request.profile);
+    if (dataset === undefined) {
+      throw new Error('Series conversion requires a validated series profile.');
+    }
+    const variant = SERIES_VARIANTS[dataset];
+    const sql = `
+      COPY (
+        SELECT
+          ${variant.projection},
+          ${sqlString(request.dataset)} AS dataset,
+          ${sqlString(request.source)} AS source,
+          ${sqlString(request.market ?? '')} AS market,
+          ${sqlString(request.symbol ?? '')} AS symbol,
+          ${sqlString(importId)} AS import_id,
+          CAST(${sqlString(new Date().toISOString())} AS TIMESTAMPTZ) AS imported_at,
+          year(event_time) AS year,
+          month(event_time) AS month
+        FROM read_csv(${sqlString(csvPath)}, header = true,
+                      columns = ${variant.columns}, strict_mode = true, null_padding = false)
       ) TO ${sqlString(outputDirectory)}
         (FORMAT PARQUET, COMPRESSION ZSTD, PARTITION_BY (year, month))`;
     await this.run(sql);
@@ -411,15 +837,17 @@ export class WarehouseService {
 
   private async inspectParquetFiles(
     outputDirectory: string,
-    hasEventTime: boolean,
+    timeColumn?: string,
   ): Promise<ImportedParquetFile[]> {
     const paths = this.findParquetFiles(outputDirectory);
     if (paths.length === 0) throw new Error('Import produced no Parquet files.');
     const results: ImportedParquetFile[] = [];
     for (const path of paths) {
-      const projection = hasEventTime
-        ? 'COUNT(*) AS row_count, MIN(open_time) AS min_event_time, MAX(open_time) AS max_event_time'
-        : 'COUNT(*) AS row_count';
+      const projection =
+        timeColumn === undefined
+          ? 'COUNT(*) AS row_count'
+          : `COUNT(*) AS row_count, MIN(${timeColumn}) AS min_event_time, ` +
+            `MAX(${timeColumn}) AS max_event_time`;
       const rows = await this.readRows(
         `SELECT ${projection} FROM read_parquet(${sqlString(path)})`,
       );
@@ -471,6 +899,287 @@ export class WarehouseService {
     return this.metadata
       .candleFiles(selection)
       .filter((path) => existsSync(path) && isPathInside(resolve(path), this.parquetRoot));
+  }
+
+  private prepareTapeSelection(selection: TapeSelection): PreparedTapeSelection {
+    const dataset = validatePartitionValue(selection.dataset, 'dataset');
+    if (!isTapeDataset(dataset)) {
+      throw new Error("dataset must be 'trades' or 'aggtrades'.");
+    }
+    const market = validatePartitionValue(selection.market, 'market');
+    if (!isTapeMarket(market)) {
+      throw new Error("market must be 'spot' or 'um'.");
+    }
+    return {
+      dataset,
+      market,
+      symbol: validatePartitionValue(selection.symbol.toUpperCase(), 'symbol'),
+      ...(selection.source === undefined
+        ? {}
+        : { source: validatePartitionValue(selection.source, 'source') }),
+    };
+  }
+
+  private existingTapeFiles(selection: PreparedTapeSelection, window: TapeFileWindow): string[] {
+    return this.metadata
+      .seriesFiles(TAPE_PROFILE_FOR_DATASET[selection.dataset], selection, window)
+      .filter((path) => existsSync(path) && isPathInside(resolve(path), this.parquetRoot));
+  }
+
+  private prepareSeriesSelection(selection: SeriesSelection): PreparedSeriesSelection {
+    const dataset = validatePartitionValue(selection.dataset, 'dataset');
+    if (!isSeriesDataset(dataset)) {
+      throw new Error("dataset must be 'metrics' or 'bookdepth'.");
+    }
+    const market = validatePartitionValue(selection.market, 'market');
+    if (market !== 'um') {
+      throw new Error(
+        "market must be 'um'; Binance publishes the metrics and bookDepth datasets for USD-M only.",
+      );
+    }
+    return {
+      dataset,
+      market,
+      symbol: validatePartitionValue(selection.symbol.toUpperCase(), 'symbol'),
+      ...(selection.source === undefined
+        ? {}
+        : { source: validatePartitionValue(selection.source, 'source') }),
+    };
+  }
+
+  private existingSeriesFiles(
+    selection: PreparedSeriesSelection,
+    window: TapeFileWindow,
+  ): string[] {
+    return this.metadata
+      .seriesFiles(SERIES_PROFILE_FOR_DATASET[selection.dataset], selection, window)
+      .filter((path) => existsSync(path) && isPathInside(resolve(path), this.parquetRoot));
+  }
+
+  /** Resting orders consumed by one aggressor order; only aggregate trades can express it. */
+  private tapeSpanExpression(dataset: TapeDataset): string {
+    return dataset === 'aggtrades'
+      ? 'CAST(last_trade_id AS BIGINT) - CAST(first_trade_id AS BIGINT) + 1'
+      : '1';
+  }
+
+  /**
+   * `minNotional` and `minSpan` mean "what counts as large" and "what counts as a sweep".
+   * Row-level queries return only the rows that qualify. Bucketed and per-price queries
+   * keep the whole population, because filtering there would silently redefine the bucket
+   * totals — so a filter that has no meaning in those modes is rejected, never ignored.
+   */
+  private validateTapeFilters(
+    selection: PreparedTapeSelection,
+    query: TapeQuery,
+    mode: TapeQueryMode,
+  ): void {
+    if (query.minNotional !== undefined) {
+      if (!Number.isFinite(query.minNotional) || query.minNotional < 0) {
+        throw new Error('minNotional must be a non-negative number.');
+      }
+      if (mode === 'prices') {
+        throw new Error(
+          'minNotional applies to row-level and bucketed queries, not to groupBy=price.',
+        );
+      }
+    }
+    if (query.minSpan !== undefined) {
+      // Raw trades store one fill per row, so "how many resting orders were consumed"
+      // has no meaning there.
+      if (selection.dataset !== 'aggtrades') {
+        throw new Error('minSpan is only available for the aggtrades dataset.');
+      }
+      if (!Number.isInteger(query.minSpan) || query.minSpan < 1) {
+        throw new Error('minSpan must be a positive integer.');
+      }
+      if (mode !== 'rows') {
+        throw new Error('minSpan applies to row-level queries only.');
+      }
+    }
+    if (mode === 'prices' && (query.startTime === undefined || query.endTime === undefined)) {
+      throw new Error(
+        'groupBy=price requires both startTime and endTime; without a bounded window it ' +
+          "reads the symbol's entire history before the row cap can reject it.",
+      );
+    }
+  }
+
+  /**
+   * `event_time` is a naive UTC TIMESTAMP, so bounds must be converted with the same
+   * expression the import used. Comparing raw strings would silently shift any
+   * offset-bearing input such as `+08:00`.
+   *
+   * The large-order filters use `price * qty` rather than `quote_qty`, because aggregate
+   * trades carry no quote quantity and the filter would silently match nothing.
+   */
+  private tapeConditions(
+    selection: PreparedTapeSelection,
+    query: TapeQuery,
+    mode: TapeQueryMode,
+  ): {
+    clause: string;
+    values: Record<string, string>;
+  } {
+    const conditions: string[] = [];
+    const values: Record<string, string> = {};
+    if (query.startTime !== undefined) {
+      conditions.push("event_time >= timezone('UTC', CAST($startTime AS TIMESTAMPTZ))");
+      values['startTime'] = query.startTime;
+    }
+    if (query.endTime !== undefined) {
+      conditions.push("event_time <= timezone('UTC', CAST($endTime AS TIMESTAMPTZ))");
+      values['endTime'] = query.endTime;
+    }
+    if (mode === 'rows') {
+      if (query.minNotional !== undefined) {
+        conditions.push(`price * qty >= ${query.minNotional}`);
+      }
+      if (query.minSpan !== undefined) {
+        conditions.push(`${this.tapeSpanExpression(selection.dataset)} >= ${query.minSpan}`);
+      }
+    }
+    return { clause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '', values };
+  }
+
+  private tapeIdColumns(dataset: TapeDataset): string {
+    return dataset === 'trades' ? 'trade_id' : 'agg_trade_id, first_trade_id, last_trade_id';
+  }
+
+  private async queryTapeRows(
+    selection: PreparedTapeSelection,
+    query: TapeQuery,
+  ): Promise<unknown[]> {
+    const files = this.existingTapeFiles(selection, query);
+    if (files.length === 0) return [];
+    const { clause, values } = this.tapeConditions(selection, query, 'rows');
+    const spanColumn =
+      selection.dataset === 'aggtrades'
+        ? `, ${this.tapeSpanExpression(selection.dataset)} AS span`
+        : '';
+    const sql = `
+      SELECT ${this.tapeIdColumns(selection.dataset)}${spanColumn}, price, qty, quote_qty,
+             event_time, is_buyer_maker, is_best_match, dataset, source, market, symbol
+      FROM read_parquet([${files.map(sqlString).join(', ')}], union_by_name = true)
+      ${clause}
+      QUALIFY row_number() OVER (
+        PARTITION BY market, ${TAPE_PRIMARY_KEYS[selection.dataset]} ORDER BY imported_at DESC
+      ) = 1
+      ORDER BY event_time DESC
+      LIMIT ${query.limit}`;
+    return this.readRows(sql, values);
+  }
+
+  private async queryTapeBuckets(
+    selection: PreparedTapeSelection,
+    query: TapeQuery,
+    bucketSeconds: number,
+  ): Promise<unknown[]> {
+    const files = this.existingTapeFiles(selection, query);
+    if (files.length === 0) return [];
+    const { clause, values } = this.tapeConditions(selection, query, 'buckets');
+    // The threshold defaults to zero, so the large-order columns degrade to the bucket
+    // totals rather than disappearing. It deliberately does not filter rows: the bucket
+    // totals must stay the whole population. A stable output schema is worth the
+    // redundancy.
+    const threshold = query.minNotional ?? 0;
+    // Deduplicate in a subquery first: DuckDB evaluates QUALIFY after GROUP BY, so a
+    // single-level query would deduplicate buckets instead of trades and double-count
+    // re-published archives.
+    const sql = `
+      WITH deduplicated AS (
+        SELECT price, qty, event_time, is_buyer_maker, market
+        FROM read_parquet([${files.map(sqlString).join(', ')}], union_by_name = true)
+        ${clause}
+        QUALIFY row_number() OVER (
+          PARTITION BY market, ${TAPE_PRIMARY_KEYS[selection.dataset]} ORDER BY imported_at DESC
+        ) = 1
+      ),
+      bucketed AS (
+        SELECT time_bucket(INTERVAL '${bucketSeconds} seconds', event_time) AS bucket_start,
+               count(*) AS trade_count,
+               sum(qty) AS volume,
+               sum(price * qty) AS quote_volume,
+               sum(price * qty) / nullif(sum(qty), 0) AS vwap,
+               sum(CASE WHEN is_buyer_maker THEN 0 ELSE qty END) AS taker_buy_volume,
+               sum(CASE WHEN is_buyer_maker THEN qty ELSE 0 END) AS taker_sell_volume,
+               (taker_buy_volume - taker_sell_volume)
+                 / nullif(taker_buy_volume + taker_sell_volume, 0) AS taker_imbalance,
+               count(*) FILTER (WHERE price * qty >= ${threshold}) AS large_trade_count,
+               sum(price * qty) FILTER (WHERE price * qty >= ${threshold}) AS large_trade_notional,
+               arg_min(price, event_time) AS open,
+               arg_max(price, event_time) AS close,
+               max(price) AS high,
+               min(price) AS low
+        FROM deduplicated
+        GROUP BY 1
+      )
+      -- taker_delta is the per-bucket net aggression. cvd accumulates it across the whole
+      -- result set, so its absolute value is anchored to the requested window's start,
+      -- not to a session or a day. Callers must not compare cvd across windows with
+      -- different start times.
+      SELECT *,
+             (taker_buy_volume - taker_sell_volume) AS taker_delta,
+             sum(taker_buy_volume - taker_sell_volume) OVER (ORDER BY bucket_start ASC) AS cvd
+      FROM bucketed
+      ORDER BY bucket_start ASC
+      LIMIT ${query.limit + 1}`;
+    const rows = await this.readRows(sql, values);
+    if (rows.length > query.limit) {
+      throw new Error(
+        `Bucket query matched more than ${query.limit} buckets. ` +
+          'Narrow startTime/endTime or raise bucketSeconds.',
+      );
+    }
+    return rows;
+  }
+
+  /**
+   * Footprint view: one row per price level inside each bucket, with the taker split and
+   * the net delta. Repeated hits at one level while price does not progress is the
+   * signature that iceberg and absorption claims rest on, so the hit count and the time
+   * span are reported alongside the volumes.
+   */
+  private async queryTapePrices(
+    selection: PreparedTapeSelection,
+    query: TapeQuery,
+    bucketSeconds: number,
+  ): Promise<unknown[]> {
+    const files = this.existingTapeFiles(selection, query);
+    if (files.length === 0) return [];
+    const { clause, values } = this.tapeConditions(selection, query, 'prices');
+    const sql = `
+      WITH deduplicated AS (
+        SELECT price, qty, event_time, is_buyer_maker, market
+        FROM read_parquet([${files.map(sqlString).join(', ')}], union_by_name = true)
+        ${clause}
+        QUALIFY row_number() OVER (
+          PARTITION BY market, ${TAPE_PRIMARY_KEYS[selection.dataset]} ORDER BY imported_at DESC
+        ) = 1
+      )
+      -- One row per level rather than one per level and side: the footprint reads
+      -- directly, and ordering by volume keeps the liquid levels if the cap is hit.
+      SELECT time_bucket(INTERVAL '${bucketSeconds} seconds', event_time) AS bucket_start,
+             price,
+             sum(CASE WHEN is_buyer_maker THEN 0 ELSE qty END) AS taker_buy_volume,
+             sum(CASE WHEN is_buyer_maker THEN qty ELSE 0 END) AS taker_sell_volume,
+             sum(CASE WHEN is_buyer_maker THEN -qty ELSE qty END) AS delta,
+             sum(qty) AS volume,
+             count(*) AS trade_count,
+             min(event_time) AS first_event_time,
+             max(event_time) AS last_event_time
+      FROM deduplicated
+      GROUP BY 1, 2
+      ORDER BY bucket_start ASC, volume DESC
+      LIMIT ${query.limit + 1}`;
+    const rows = await this.readRows(sql, values);
+    if (rows.length > query.limit) {
+      throw new Error(
+        `Price-level query matched more than ${query.limit} rows. ` +
+          'Narrow startTime/endTime, raise bucketSeconds, or raise limit.',
+      );
+    }
+    return rows;
   }
 
   private findParquetFiles(directory: string): string[] {

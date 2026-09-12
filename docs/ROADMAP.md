@@ -7,7 +7,9 @@
 - Spot, USD-M Futures, local history, risk-review, and optional read-only account Skills.
 - Isolated Ed25519 `USER_DATA` profiles for account reads, with no mutation endpoints.
 - In-memory/SQLite caching and DuckDB/Parquet historical storage.
-- Cross-platform data-root derivation, import-root confinement, and bounded HTTPS imports.
+- Historical Kline plus Binance tape datasets (raw `trades` and `aggtrades`) for Spot and USD-M, with market-scoped deduplication, file-level time pruning, and bucketed aggregation.
+- Order-flow review over tape data: large-order notional floors, sweep spans, per-price hit counts, and USD-M `metrics` and `bookdepth` snapshot series for cross-checks.
+- Cross-platform data-root derivation, import-root confinement, and bounded HTTPS imports whose connections are pinned to the address that was validated.
 - Deterministic MCP, package-consumer, and cross-deliverable validation.
 
 ## Next
@@ -15,7 +17,6 @@
 - Automate `data.binance.vision` catalog and checksum discovery.
 - Add historical funding, open-interest, trader-ratio, taker-volume, and basis datasets.
 - Surface request weight, source age, and retrieval timestamps consistently.
-- Close the DNS-validation/connection gap for remote imports, or add a strict host allowlist.
 - Add release provenance and artifact attestations.
 - Add optional WebSocket market data with snapshot/delta sequencing tests.
 

@@ -62,13 +62,23 @@ function requestValidatedUrl(
   remote: ValidatedRemoteUrl,
   timeoutMs: number,
 ): Promise<IncomingMessage> {
+  const pinned = { address: remote.address.address, family: remote.address.family };
   return new Promise((resolve, reject) => {
     const request = httpsRequest(
       remote.url,
       {
         headers: { host: remote.url.host },
-        lookup: (_hostname, _options, callback) =>
-          callback(null, remote.address.address, remote.address.family),
+        // Bind the connection to the address that was validated instead of re-resolving.
+        // Node enables happy eyeballs by default and then asks a custom lookup for the
+        // `all` shape; answering with only the legacy (address, family) form makes it
+        // read the address string as a list and fail with ERR_INVALID_IP_ADDRESS.
+        lookup: (_hostname, options, callback) => {
+          if ((options as { all?: boolean }).all === true) {
+            callback(null, [pinned]);
+            return;
+          }
+          callback(null, pinned.address, pinned.family);
+        },
         servername: isIP(remote.hostname) === 0 ? remote.hostname : undefined,
         signal: AbortSignal.timeout(timeoutMs),
       },
