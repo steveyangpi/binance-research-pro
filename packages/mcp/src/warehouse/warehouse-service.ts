@@ -1003,6 +1003,23 @@ export class WarehouseService {
           "reads the symbol's entire history before the row cap can reject it.",
       );
     }
+    // A price band is a scope, not a definition, so it is deliberately allowed in every
+    // mode: everything inside the band still aggregates over the whole population there.
+    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+      const bounds = [query.minPrice, query.maxPrice].filter(
+        (value): value is number => value !== undefined,
+      );
+      if (bounds.some((value) => !Number.isFinite(value) || value < 0)) {
+        throw new Error('minPrice and maxPrice must be non-negative numbers.');
+      }
+      if (
+        query.minPrice !== undefined &&
+        query.maxPrice !== undefined &&
+        query.minPrice > query.maxPrice
+      ) {
+        throw new Error('minPrice must not exceed maxPrice.');
+      }
+    }
   }
 
   /**
@@ -1012,6 +1029,9 @@ export class WarehouseService {
    *
    * The large-order filters use `price * qty` rather than `quote_qty`, because aggregate
    * trades carry no quote quantity and the filter would silently match nothing.
+   *
+   * The price band applies to every mode, so all aggregates describe the band rather than
+   * the symbol; callers must state the band alongside any result drawn from it.
    */
   private tapeConditions(
     selection: PreparedTapeSelection,
@@ -1030,6 +1050,13 @@ export class WarehouseService {
     if (query.endTime !== undefined) {
       conditions.push("event_time <= timezone('UTC', CAST($endTime AS TIMESTAMPTZ))");
       values['endTime'] = query.endTime;
+    }
+    // The price band scopes every mode, so it sits outside the row-only block below.
+    if (query.minPrice !== undefined) {
+      conditions.push(`price >= ${query.minPrice}`);
+    }
+    if (query.maxPrice !== undefined) {
+      conditions.push(`price <= ${query.maxPrice}`);
     }
     if (mode === 'rows') {
       if (query.minNotional !== undefined) {

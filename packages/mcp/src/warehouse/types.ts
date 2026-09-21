@@ -89,6 +89,12 @@ export type TapeQuery = TapeSelection & {
   minSpan?: number;
   /** When `'price'`, aggregate per price level instead of per row. Requires bucketSeconds. */
   groupBy?: 'price';
+  /**
+   * Price band. Unlike `minNotional`, this scopes the whole query rather than defining
+   * which rows qualify, so it applies to every mode and every aggregate inside it.
+   */
+  minPrice?: number;
+  maxPrice?: number;
 };
 
 /**

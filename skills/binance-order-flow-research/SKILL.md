@@ -10,16 +10,17 @@ happened; none of it observes resting intent.
 
 ## What this data can and cannot answer
 
-| Question                                   | Verdict                   | Basis                                                                                                                                                                     |
-| ------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| When did a large aggressor order hit?      | Answerable                | One aggregate trade is one aggressor order at one price, so its size is directly readable                                                                                 |
-| Was a resting queue swept across levels?   | Answerable                | `span` counts how many resting orders one aggressor order consumed                                                                                                        |
-| Is aggressive flow confirming price?       | Answerable                | `cvd` accumulates net taker delta across the window; divergence is readable against the price path                                                                        |
-| Absorption, or exhaustion?                 | Inference, but measurable | Absorption is heavy aggression with no price progress; exhaustion is price progress on decaying volume. The two have different signatures and must be reported separately |
-| Was an order split into child orders?      | Inference only            | Same side, close in time and price is the signature of splitting; common parentage cannot be proven                                                                       |
-| Was there an iceberg order?                | Inference only            | One level hit repeatedly on one side without price progress suggests hidden size; there is no book history to confirm replenishment                                       |
-| Which market moved first, spot or futures? | Answerable as a sequence  | Both tapes exist for the same symbol, so bucket-level timing is comparable. This is description, not prediction                                                           |
-| Queue-level book delta or cancellations    | **Not answerable**        | No historical queue logs exist; depth archives are cumulative percentage bands                                                                                            |
+| Question                                    | Verdict                          | Basis                                                                                                                                                                                                                    |
+| ------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| When did a large aggressor order hit?       | Answerable                       | One aggregate trade is one aggressor order at one price, so its size is directly readable                                                                                                                                |
+| Was a resting queue swept across levels?    | Answerable                       | `span` counts how many resting orders one aggressor order consumed                                                                                                                                                       |
+| Is aggressive flow confirming price?        | Answerable                       | `cvd` accumulates net taker delta across the window; divergence is readable against the price path                                                                                                                       |
+| Absorption, or exhaustion?                  | Inference, but measurable        | Absorption is heavy aggression with no price progress; exhaustion is price progress on decaying volume. The two have different signatures and must be reported separately                                                |
+| Was an order split into child orders?       | Inference only                   | Same side, close in time and price is the signature of splitting; common parentage cannot be proven                                                                                                                      |
+| Was there an iceberg order?                 | Inference only                   | One level hit repeatedly on one side without price progress suggests hidden size; there is no book history to confirm replenishment                                                                                      |
+| Which market moved first, spot or futures?  | Answerable as a sequence         | Both tapes exist for the same symbol, so bucket-level timing is comparable. This is description, not prediction                                                                                                          |
+| Does a price band show wash-trading traces? | Inference only, never conclusive | Wash trading means one entity on both sides, and market data carries no account, order, or counterparty identity. Tape can flag two-way flow that is inconsistent with price discovery, and nothing more. See workflow G |
+| Queue-level book delta or cancellations     | **Not answerable**               | No historical queue logs exist; depth archives are cumulative percentage bands                                                                                                                                           |
 
 ## Two hard boundaries
 
@@ -34,12 +35,12 @@ happened; none of it observes resting intent.
 ## What is imported today — check before asserting
 
 Coverage is the first thing to verify, because the analyses below are only possible where
-the data exists.
+the data exists. This list is a snapshot and grows; re-check it rather than trusting it.
 
 ```text
-aggtrades    spot and um, BTCUSDT, 2026-08 — the main order-flow dataset
+aggtrades    spot and um, BTCUSDT — 2026-08 plus a 2026-09 consolidation window
 trades       NOT IMPORTED. No raw fills are in the warehouse at all
-metrics      um only, BTCUSDT, 2026-08 — needed for the open-interest cross-check
+metrics      um only, BTCUSDT — same symbol, and the same periods as aggtrades above
 bookdepth    um only, BTCUSDT, 2026-08
 ```
 
@@ -161,6 +162,35 @@ is only as good as its resolution.
 Note that funding is not in the warehouse; it comes from the live funding tool, which is a
 different source and cadence from the historical tape.
 
+### G. Wash-trade screening inside a price band
+
+Wash trading is one entity trading with itself. Market data carries no account, no order id,
+and no counterparty, so nothing here proves it. What is measurable is whether a band shows
+two-way flow that price discovery does not explain. Every result is a candidate, never a
+finding.
+
+1. Bound the band with the price bounds and choose a short window — minutes to a couple of
+   hours. The statistic means less the longer the window gets.
+2. For each level, take net as the signed sum of `delta` and gross as the sum of its absolute
+   value **across the buckets in that window**, then read net over gross.
+   - Near zero within a short window: buying and selling alternated at that level while price
+     did not move through it. That is what a candidate looks like.
+   - Near zero across a long window: ordinary. Price returned to the level many times and the
+     signed deltas cancelled. **Always report how many buckets the level appeared in** — a
+     level present across most buckets of a long window describes a level the market keeps
+     revisiting, not an entity trading with itself.
+3. Require all three conditions together: an abnormal hit count for that level, net over
+   gross near zero, and no price progress through the level. Any one alone is unremarkable.
+4. Check the absolute size. A perfectly balanced level that traded one or two coins across a
+   day is market-maker inventory churn, not fabricated volume. Fabricated volume has to be
+   large enough to be worth fabricating.
+5. Where the data allows, look for corroboration rather than proof: cumulative depth that
+   never drains while large volume prints, or an official taker ratio that disagrees with the
+   computed one. Both are reasons to look closer, not conclusions.
+
+Report the band, the window, how many buckets the level appeared in, and the absolute sizes.
+State plainly that the data cannot identify the parties.
+
 ## Parameter rules
 
 - The notional floor defines what counts as large. Row-level queries return only qualifying
@@ -168,6 +198,9 @@ different source and cadence from the historical tape.
   instead, because filtering there would silently redefine the bucket totals.
 - `minSpan` applies to aggregate trades only. Raw trades store one fill per row and have no
   span. Querying row level is the only mode that accepts it.
+- The price bounds scope the whole query rather than defining which rows count, so they apply
+  in every mode and every bucket then describes the band alone. Report the band with any
+  result drawn from it — a band's volume is not the symbol's volume.
 - The price-level grouping needs a bucket width **and** both time bounds. It is rejected
   without them, because an unbounded frame reads the whole history before the row cap bites.
   It also rejects the notional floor, which would distort the level distribution.
@@ -194,11 +227,13 @@ Report under these headings, and keep observation separate from inference throug
 
 ```text
 1. Coverage      window, bucket width, market and symbol, plus any missing days
-2. Baseline      notional floor used, and why it is appropriate for this symbol
+2. Baseline      notional floor used, and why it is appropriate for this symbol; for any
+                 hit-count screen, the per-level baseline split by price roundness
 3. Macro flow    net delta, imbalance, CVD trend and whether it confirms or diverges
                  from price, and how concentrated the large orders were
 4. Microstructure (labelled as inference) sweeps with time, price, size and span;
-                 absorption and exhaustion levels, reported separately
+                 absorption and exhaustion levels, reported separately; wash candidates
+                 with their band, bucket count and absolute size
 5. Cross-checks  positioning regime if the metrics window is covered; spot versus
                  futures sequence if both tapes are covered
 6. Limits        no order IDs, no historical queue data, and which of these conclusions
@@ -218,3 +253,11 @@ Report under these headings, and keep observation separate from inference throug
 6. State the window with every number. CVD, in particular, is meaningless without its anchor.
 7. Never state or imply a future price direction, a guaranteed outcome, or a personalised
    recommendation. Describe what happened and what it is consistent with.
+8. A round price level is not evidence of anything. Round levels are hit far more often per
+   level than others — on a major pair, roughly a hundred times more — so a screen for
+   "unusually many hits" returns the round levels first and nothing else. Compare a level
+   against others of the same kind before calling its hit count abnormal.
+9. Two-way flow means nothing without its window. A level whose net aggression cancels is
+   informative only when it cancelled inside a short window with price never leaving the
+   band; across a long window it only means price kept coming back. Report the bucket count
+   alongside the ratio, and never average the two away.

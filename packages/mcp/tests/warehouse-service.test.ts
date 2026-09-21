@@ -903,6 +903,58 @@ describe('WarehouseService order flow and series', () => {
     expect(Number(buckets[1]?.['cvd'])).toBeCloseTo(-2.493, 9);
   });
 
+  it('scopes a query to a price band in every mode', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = await importTapeFixture(service, importRoot);
+    // The fixture holds 80341.83 (qty 0.007) and 80350 (qty 2.5).
+
+    const upper = (await service.queryTrades({ ...request, limit: 10, minPrice: 80345 })) as Row[];
+    expect(upper).toHaveLength(1);
+    expect(upper[0]).toMatchObject({ price: 80350, qty: 2.5 });
+
+    const lower = (await service.queryTrades({ ...request, limit: 10, maxPrice: 80345 })) as Row[];
+    expect(lower).toHaveLength(1);
+    expect(lower[0]).toMatchObject({ price: 80341.83 });
+
+    // A band is a scope, not a row filter bolted onto one mode: bucketed totals must
+    // describe the band too, not the whole symbol.
+    const scoped = (await service.queryTrades({
+      ...request,
+      limit: 10,
+      bucketSeconds: 3600,
+      minPrice: 80345,
+    })) as Row[];
+    expect(scoped).toHaveLength(1);
+    expect(Number(scoped[0]?.['trade_count'])).toBe(1);
+    expect(scoped[0]?.['volume']).toBeCloseTo(2.5, 9);
+    expect(scoped[0]?.['taker_delta']).toBeCloseTo(-2.5, 9);
+
+    // The price-level view honours it as well.
+    const levels = (await service.queryTrades({
+      ...request,
+      limit: 10,
+      bucketSeconds: 3600,
+      groupBy: 'price',
+      minPrice: 80345,
+      startTime: '2026-09-07T00:00:00Z',
+      endTime: '2026-09-07T23:59:59Z',
+    })) as Row[];
+    expect(levels).toHaveLength(1);
+    expect(levels[0]).toMatchObject({ price: 80350 });
+  });
+
+  it('rejects a malformed price band', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = await importTapeFixture(service, importRoot);
+
+    await expect(
+      service.queryTrades({ ...request, limit: 10, minPrice: 90000, maxPrice: 80000 }),
+    ).rejects.toThrow('minPrice must not exceed maxPrice.');
+    await expect(service.queryTrades({ ...request, limit: 10, maxPrice: -1 })).rejects.toThrow(
+      'minPrice and maxPrice must be non-negative numbers.',
+    );
+  });
+
   it('reports a null imbalance instead of failing when a bucket has no volume', async () => {
     const { importRoot, service } = createWarehouse();
     await service.importFile({

@@ -264,7 +264,8 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
         'Query deduplicated Binance trade records from imported Parquet files. Set bucketSeconds ' +
         'to aggregate into time buckets (trade count, volume, VWAP, taker buy/sell split, net ' +
         'taker delta, large-order counts, and CVD) instead of returning raw rows. Use ' +
-        'minNotional to isolate large aggressive orders, minSpan for sweeps, and groupBy=price ' +
+        'minNotional to isolate large aggressive orders, minSpan for sweeps, minPrice and ' +
+        'maxPrice to scope the whole query to a price band, and groupBy=price ' +
         'for a footprint view per price level. Note that aggregate trades carry no quote ' +
         'quantity, so quote volume and VWAP are derived from price times quantity, and that ' +
         'CVD is anchored to the start of the requested window, so it is not comparable across ' +
@@ -313,6 +314,19 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
               'delta, hit count, and the time span over which the level was hit. Requires ' +
               'bucketSeconds plus both startTime and endTime.',
           ),
+        minPrice: z
+          .number()
+          .nonnegative()
+          .optional()
+          .describe(
+            'Lower bound of a price band. Unlike minNotional this scopes the whole query, ' +
+              'so every aggregate and bucket describes trades inside the band only.',
+          ),
+        maxPrice: z
+          .number()
+          .nonnegative()
+          .optional()
+          .describe('Upper bound of the price band. See minPrice.'),
       },
       outputSchema: jsonOutputSchema,
       annotations: localReadAnnotations,
@@ -329,6 +343,8 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
       minNotional,
       minSpan,
       groupBy,
+      minPrice,
+      maxPrice,
     }) => {
       try {
         return jsonResult(
@@ -344,6 +360,8 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
             ...(minNotional === undefined ? {} : { minNotional }),
             ...(minSpan === undefined ? {} : { minSpan }),
             ...(groupBy === undefined ? {} : { groupBy }),
+            ...(minPrice === undefined ? {} : { minPrice }),
+            ...(maxPrice === undefined ? {} : { maxPrice }),
           }),
         );
       } catch (error) {
