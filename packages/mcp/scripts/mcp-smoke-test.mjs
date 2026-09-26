@@ -27,6 +27,7 @@ const expectedTools = [
   'multi_timeframe_analysis',
   'order_book_snapshot',
   'spot_account_overview',
+  'warehouse_coverage',
   'warehouse_data_range',
   'warehouse_import_file',
   'warehouse_import_url',

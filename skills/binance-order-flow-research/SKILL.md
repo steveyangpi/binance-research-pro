@@ -38,19 +38,38 @@ Coverage is the first thing to verify, because the analyses below are only possi
 the data exists. This list is a snapshot and grows; re-check it rather than trusting it.
 
 ```text
-aggtrades    spot and um, BTCUSDT — 2026-08 plus a 2026-09 consolidation window
+aggtrades    spot and um, BTCUSDT — 2026-08 plus parts of 2026-09
 trades       NOT IMPORTED. No raw fills are in the warehouse at all
-metrics      um only, BTCUSDT — same symbol, and the same periods as aggtrades above
+metrics      um only, BTCUSDT — same symbol and periods as the aggtrades above
 bookdepth    um only, BTCUSDT, 2026-08
 ```
 
-Call the dataset listing or the range tool before claiming an analysis is available. Raw
-trade ID ranges bound where the fills were, but the individual fill sizes inside that range
-are unavailable, so do not imply tick-level detail that cannot be read.
+### Check coverage before analysing, and fill gaps before you analyse around them
+
+A partial window produces numbers that look complete and are wrong. Two days out of a
+seven-day request can come out net-buying while the full week is net-selling, and nothing
+in the toolchain will flag the discrepancy. Do this first, every time:
+
+1. **Work out how many days the window should contain.** A 7-day request needs 7 distinct
+   days. Without that number there is nothing to compare the file count against.
+2. **List the files and count the distinct days** for the dataset, market and symbol under
+   study. Compare against step 1. Count days, not files: a symbol covered in two markets or
+   in two datasets has more files than days.
+3. **If days are missing, import them before analysing.** The tape and series datasets are
+   available one day per archive from `data.binance.vision`, and re-importing is idempotent,
+   so filling a gap is a few calls and safe. Run the analysis only after the count matches.
+   Importing is a write; treat it as state-changing and confirm the source first.
+4. **State the coverage at the top of the answer**, as days present out of days requested.
+   If you cannot fill a gap, reduce the claim to the days that are present and say so — do
+   not report a window-wide result from a subset.
+
+Raw trade ID ranges bound where the fills were, but the individual fill sizes inside that
+range are unavailable, so do not imply tick-level detail that cannot be read.
 
 A range with a missing day still reports a continuous earliest and latest time. Read
 coverage from the file listing, never from the range alone, and report gaps explicitly.
-Missing coverage is not zero activity.
+Missing coverage is not zero activity. Missing coverage is also not a reason to proceed:
+fill it, or narrow the claim.
 
 ## Choose the dataset
 
@@ -64,6 +83,30 @@ metrics     five-minute open interest, top-trader and account long/short ratios,
             official taker buy/sell volume ratio
 bookdepth   thirty-second cumulative depth per percentage band; negative is the bid side
 ```
+
+### The official taker ratio is not comparable to a computed imbalance
+
+The column sum_taker_long_short_vol_ratio is a **volume multiplier** — buy volume divided
+by sell volume. It is bounded below by zero and unbounded above, so it centres on 1, not on 0.
+A computed imbalance is a **signed share** centred on 0 and bounded by ±1. Comparing the raw
+ratio directly against an imbalance is a units mismatch, and it produces opposite signs on
+the same day.
+
+Rescaling fixes the units but not the estimator:
+
+```text
+pm1 = (ratio - 1) / (ratio + 1)
+```
+
+Do **not** treat the rescaled value as a cross-check on the tape. `sum_taker_long_short_vol_ratio`
+is the unweighted arithmetic mean of the five-minute ratios, while the tape imbalance is
+volume-weighted. Per-sample dispersion is extreme — observed five-minute ratios span roughly
+0.10 to 8.5 — so the right-skewed mean sits far above the volume-weighted value. Measured over
+14 recent days, 8 of them carry the opposite sign to the tape imbalance.
+
+Report the two as two independent readings with two different estimators, never as agreement
+and never as a contradiction. Until the warehouse also exposes per-bucket taker buy and sell
+volume for the metrics dataset, a true volume-weighted comparison cannot be built.
 
 ## Reading the columns
 
@@ -185,8 +228,7 @@ finding.
    day is market-maker inventory churn, not fabricated volume. Fabricated volume has to be
    large enough to be worth fabricating.
 5. Where the data allows, look for corroboration rather than proof: cumulative depth that
-   never drains while large volume prints, or an official taker ratio that disagrees with the
-   computed one. Both are reasons to look closer, not conclusions.
+   never drains while large volume prints. Both are reasons to look closer, not conclusions.
 
 Report the band, the window, how many buckets the level appeared in, and the absolute sizes.
 State plainly that the data cannot identify the parties.

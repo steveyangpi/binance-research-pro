@@ -229,6 +229,31 @@ const SERIES_VARIANTS: Record<SeriesDataset, SeriesVariant> = {
   },
 };
 
+/**
+ * Validate a numeric argument before it is interpolated into SQL.
+ *
+ * `Number.isFinite` alone is not enough: a value past `Number.MAX_SAFE_INTEGER` is still
+ * finite, so it would be interpolated and then fail inside DuckDB with a cast error instead
+ * of naming the argument that was wrong. Values above this are also ones that cannot survive
+ * a round trip through the JavaScript number that produced them.
+ */
+function safeNumber(
+  value: number,
+  name: string,
+  options: { integer?: boolean; minimum?: number } = {},
+): void {
+  const { integer = false, minimum } = options;
+  if (integer ? !Number.isInteger(value) : !Number.isFinite(value)) {
+    throw new Error(`${name} must be ${integer ? 'an integer' : 'a finite number'}.`);
+  }
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`${name} must be a safe integer, at most ${Number.MAX_SAFE_INTEGER}.`);
+  }
+  if (minimum !== undefined && value < minimum) {
+    throw new Error(`${name} must be at least ${minimum}.`);
+  }
+}
+
 function timeColumnForProfile(profile: ImportProfile): string | undefined {
   if (profile === 'binance-kline') return 'open_time';
   if (tapeDatasetForProfile(profile) !== undefined) return 'event_time';
@@ -319,6 +344,38 @@ export class WarehouseService {
     return this.metadata.listFiles(filter);
   }
 
+  /**
+   * Day-level coverage for one dataset, read from file bounds only. Answers "which days are
+   * missing" that `listDatasets` cannot, because it reduces a selection to a single
+   * MIN/MAX pair and hides interior gaps.
+   */
+  public coverage(
+    selection: {
+      dataset: string;
+      source?: string;
+      market?: string;
+      symbol?: string;
+      interval?: string;
+    },
+    window: TapeFileWindow = {},
+  ): Record<string, unknown> {
+    return this.metadata.coverageGaps(
+      {
+        dataset: validatePartitionValue(selection.dataset, 'dataset'),
+        ...(selection.source === undefined
+          ? {}
+          : { source: validatePartitionValue(selection.source, 'source') }),
+        ...(selection.market === undefined
+          ? {}
+          : { market: validatePartitionValue(selection.market, 'market') }),
+        ...(selection.symbol === undefined
+          ? {}
+          : { symbol: validatePartitionValue(selection.symbol, 'symbol') }),
+      },
+      window,
+    );
+  }
+
   public async queryCandles(query: CandleQuery): Promise<unknown[]> {
     const selection = this.prepareCandleSelection(query);
     const files = this.existingCandleFiles(selection);
@@ -399,9 +456,15 @@ export class WarehouseService {
     return this.queryTapeBuckets(prepared, query, bucketSeconds);
   }
 
-  public async tapeDataRange(selection: TapeSelection): Promise<Record<string, unknown>> {
+  public async tapeDataRange(
+    selection: TapeSelection,
+    window: TapeFileWindow = {},
+  ): Promise<Record<string, unknown>> {
     const prepared = this.prepareTapeSelection(selection);
-    const files = this.existingTapeFiles(prepared, {});
+    // Without a window this scans every file the symbol has ever produced, so it is the one
+    // path that grows with the age of the warehouse rather than with the query. Callers
+    // that only need to know whether a day is covered should pass a window.
+    const files = this.existingTapeFiles(prepared, window);
     if (files.length === 0) {
       return { ...prepared, rowCount: 0, minEventTime: null, maxEventTime: null };
     }
@@ -433,8 +496,21 @@ export class WarehouseService {
   public async querySeries(query: SeriesQuery): Promise<unknown[]> {
     const prepared = this.prepareSeriesSelection(query);
     const variant = SERIES_VARIANTS[prepared.dataset];
-    if (query.percentage !== undefined && prepared.dataset !== 'bookdepth') {
-      throw new Error('percentage is only available for the bookdepth dataset.');
+    // Every parameter is validated before any file lookup. An empty result must not be
+    // able to hide a bad argument: the same request would otherwise succeed or fail
+    // depending on whether anything happens to be imported for the symbol.
+    if (query.percentage !== undefined) {
+      // Finite first: a NaN is wrong regardless of which dataset was asked for, and saying
+      // so beats pointing at the dataset.
+      if (!Number.isFinite(query.percentage)) {
+        throw new Error('percentage must be a finite number.');
+      }
+      if (prepared.dataset !== 'bookdepth') {
+        throw new Error('percentage is only available for the bookdepth dataset.');
+      }
+    }
+    if (query.bucketSeconds !== undefined && !Number.isInteger(query.bucketSeconds)) {
+      throw new Error('bucketSeconds must be a positive integer.');
     }
     const files = this.existingSeriesFiles(prepared, query);
     if (files.length === 0) return [];
@@ -450,9 +526,6 @@ export class WarehouseService {
       values['endTime'] = query.endTime;
     }
     if (query.percentage !== undefined) {
-      if (!Number.isFinite(query.percentage)) {
-        throw new Error('percentage must be a finite number.');
-      }
       conditions.push(`percentage = ${query.percentage}`);
     }
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -968,6 +1041,10 @@ export class WarehouseService {
    * Row-level queries return only the rows that qualify. Bucketed and per-price queries
    * keep the whole population, because filtering there would silently redefine the bucket
    * totals — so a filter that has no meaning in those modes is rejected, never ignored.
+   *
+   * Numeric guards go through `safeNumber` rather than `Number.isFinite`: a value beyond
+   * `Number.MAX_SAFE_INTEGER` is still finite, and interpolating it would surface as a DuckDB
+   * cast error instead of the message that says what was wrong.
    */
   private validateTapeFilters(
     selection: PreparedTapeSelection,
@@ -975,9 +1052,7 @@ export class WarehouseService {
     mode: TapeQueryMode,
   ): void {
     if (query.minNotional !== undefined) {
-      if (!Number.isFinite(query.minNotional) || query.minNotional < 0) {
-        throw new Error('minNotional must be a non-negative number.');
-      }
+      safeNumber(query.minNotional, 'minNotional', { minimum: 0 });
       if (mode === 'prices') {
         throw new Error(
           'minNotional applies to row-level and bucketed queries, not to groupBy=price.',
@@ -990,9 +1065,7 @@ export class WarehouseService {
       if (selection.dataset !== 'aggtrades') {
         throw new Error('minSpan is only available for the aggtrades dataset.');
       }
-      if (!Number.isInteger(query.minSpan) || query.minSpan < 1) {
-        throw new Error('minSpan must be a positive integer.');
-      }
+      safeNumber(query.minSpan, 'minSpan', { integer: true, minimum: 1 });
       if (mode !== 'rows') {
         throw new Error('minSpan applies to row-level queries only.');
       }
@@ -1006,12 +1079,8 @@ export class WarehouseService {
     // A price band is a scope, not a definition, so it is deliberately allowed in every
     // mode: everything inside the band still aggregates over the whole population there.
     if (query.minPrice !== undefined || query.maxPrice !== undefined) {
-      const bounds = [query.minPrice, query.maxPrice].filter(
-        (value): value is number => value !== undefined,
-      );
-      if (bounds.some((value) => !Number.isFinite(value) || value < 0)) {
-        throw new Error('minPrice and maxPrice must be non-negative numbers.');
-      }
+      if (query.minPrice !== undefined) safeNumber(query.minPrice, 'minPrice', { minimum: 0 });
+      if (query.maxPrice !== undefined) safeNumber(query.maxPrice, 'maxPrice', { minimum: 0 });
       if (
         query.minPrice !== undefined &&
         query.maxPrice !== undefined &&

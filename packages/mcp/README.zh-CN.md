@@ -42,6 +42,7 @@
 | `warehouse_list_files`    | 查看 Parquet 文件及其导入元数据        |
 | `warehouse_query_candles` | 查询并按开盘时间去重的历史 K 线        |
 | `warehouse_data_range`    | 查询 K 线行数及最早/最晚时间           |
+| `warehouse_coverage`      | 列出某数据集已导入与缺失的 UTC 日期    |
 
 ### 可选只读账户工具
 

@@ -417,6 +417,63 @@ describe('WarehouseService tape datasets', () => {
     expect(um[1]?.['price']).toBe(80350);
   });
 
+  it('keeps the two markets apart in aggregation, not only at row level', async () => {
+    const { importRoot, service } = createWarehouse();
+    // A single shared file holding both markets is impossible through the import API, so
+    // import each market and then assert the aggregates never merge them. The risk this
+    // covers is a deduplication window that omits `market`: row-level output would still
+    // look right while bucket totals silently dropped one market's rows.
+    const request = {
+      dataset: 'aggtrades',
+      source: 'fixture',
+      profile: 'binance-agg-trades' as const,
+      symbol: 'BTCUSDT',
+    };
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'spot.csv', SPOT_AGG_TRADES_CSV),
+      market: 'spot',
+    });
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'um.csv', UM_AGG_TRADES_CSV),
+      market: 'um',
+    });
+
+    for (const market of ['spot', 'um'] as const) {
+      const range = await service.tapeDataRange({
+        dataset: 'aggtrades',
+        market,
+        symbol: 'BTCUSDT',
+      });
+      const buckets = (await service.queryTrades({
+        dataset: 'aggtrades',
+        market,
+        symbol: 'BTCUSDT',
+        limit: 10,
+        bucketSeconds: 86400,
+      })) as Row[];
+      const rangeRows = range.rowCount;
+      // The bucket total must equal the range total: a market-blind dedup window would
+      // collapse the two rows that share an id and quietly halve this.
+      expect(Number(buckets[0]?.['trade_count']), `${market} bucket count`).toBe(rangeRows);
+    }
+
+    // Each market keeps exactly its own single row, not one of the two.
+    const spot = await service.tapeDataRange({
+      dataset: 'aggtrades',
+      market: 'spot',
+      symbol: 'BTCUSDT',
+    });
+    const um = await service.tapeDataRange({
+      dataset: 'aggtrades',
+      market: 'um',
+      symbol: 'BTCUSDT',
+    });
+    expect(spot.rowCount).toBe(1);
+    expect(um.rowCount).toBe(1);
+  });
+
   it('rejects invalid tape import metadata', async () => {
     const { importRoot, service } = createWarehouse();
     const path = writeFixture(importRoot, 'spot.csv', SPOT_TRADES_CSV);
@@ -677,6 +734,20 @@ describe('WarehouseService tape datasets', () => {
     } finally {
       store.close();
     }
+
+    // A windowed range must read only the files that overlap it. Without this, the range
+    // tool is the one path that grows with the age of the warehouse rather than with the
+    // query: unbounded it scans every file the symbol has ever produced.
+    await expect(
+      service.tapeDataRange(
+        { dataset: 'trades', source: 'fixture', symbol: 'BTCUSDT', market: 'spot' },
+        { startTime: '2026-09-07T00:00:00Z', endTime: '2026-09-07T23:59:59Z' },
+      ),
+    ).resolves.toMatchObject({
+      rowCount: 2,
+      minEventTime: '2026-09-07 00:00:00.109781',
+      maxEventTime: '2026-09-07 00:01:00.602',
+    });
   });
 
   it('rejects unknown tape datasets and markets at query time', async () => {
@@ -688,6 +759,79 @@ describe('WarehouseService tape datasets', () => {
     await expect(
       service.queryTrades({ dataset: 'trades', market: 'binance', symbol: 'BTCUSDT', limit: 1 }),
     ).rejects.toThrow("market must be 'spot' or 'um'.");
+  });
+
+  it('reports missing days that a min/max dataset summary hides', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = {
+      dataset: 'trades',
+      source: 'fixture',
+      profile: 'binance-trades' as const,
+      market: 'spot',
+      symbol: 'BTCUSDT',
+    };
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'sep.csv', SPOT_TRADES_CSV),
+    });
+    await service.importFile({
+      ...request,
+      path: writeFixture(
+        importRoot,
+        'oct.csv',
+        '7000000001,90000.00,0.00100,90.0000000,1790812800000000,False,True',
+      ),
+    });
+
+    // The dataset summary collapses these two files to one min/max pair spanning
+    // 2026-09-07 to 2026-10-01, which reads as continuous coverage.
+    const summary = service.listDatasets() as Row[];
+    expect(summary[0]).toMatchObject({ min_event_time: '2026-09-07 00:00:00.109781' });
+
+    // Coverage is what exposes that the 24 days in between were never imported.
+    const coverage = service.coverage({ dataset: 'trades', source: 'fixture', market: 'spot' });
+    expect(coverage.coveredDayCount).toBe(2);
+    expect(coverage.firstDay).toBe('2026-09-07');
+    expect(coverage.lastDay).toBe('2026-10-01');
+    expect(coverage.missingDayCount).toBe(23);
+    expect(coverage.coveredDays as string[]).toEqual(['2026-09-07', '2026-10-01']);
+    expect(coverage.missingDays as string[]).toContain('2026-09-15');
+    expect(coverage.missingDays as string[]).not.toContain('2026-09-07');
+  });
+
+  it('limits the coverage report to a requested window and honours market isolation', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = {
+      dataset: 'aggtrades',
+      source: 'fixture',
+      profile: 'binance-agg-trades' as const,
+      symbol: 'BTCUSDT',
+    };
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'spot.csv', SPOT_AGG_TRADES_CSV),
+      market: 'spot',
+    });
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'um.csv', UM_AGG_TRADES_CSV),
+      market: 'um',
+    });
+
+    // A window that brackets the single imported day must report that day as covered and
+    // its neighbours as missing, rather than reporting an empty or unfiltered result.
+    const spot = service.coverage(
+      { dataset: 'aggtrades', source: 'fixture', market: 'spot' },
+      { startTime: '2026-09-06T00:00:00Z', endTime: '2026-09-08T00:00:00Z' },
+    );
+    expect(spot.coveredDays).toEqual(['2026-09-07']);
+    expect(spot.expectedDayCount).toBe(3);
+    expect(spot.missingDays).toEqual(['2026-09-06', '2026-09-08']);
+
+    // The um import is a separate file set, so it must not borrow spot's coverage.
+    const um = service.coverage({ dataset: 'aggtrades', source: 'fixture', market: 'um' });
+    expect(um.coveredDayCount).toBe(1);
+    expect(um.missingDayCount).toBe(0);
   });
 
   it('filters listed files by market', async () => {
@@ -903,6 +1047,36 @@ describe('WarehouseService order flow and series', () => {
     expect(Number(buckets[1]?.['cvd'])).toBeCloseTo(-2.493, 9);
   });
 
+  it('re-anchors CVD to the requested window rather than to an absolute origin', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = await importTapeFixture(service, importRoot);
+
+    const full = (await service.queryTrades({
+      ...request,
+      limit: 10,
+      startTime: '2026-09-07T00:00:00Z',
+      endTime: '2026-09-07T00:02:00Z',
+      bucketSeconds: 60,
+    })) as Row[];
+    // Drop the first bucket: the remaining bucket must restart its own CVD at its own delta.
+    const trimmed = (await service.queryTrades({
+      ...request,
+      limit: 10,
+      startTime: '2026-09-07T00:01:00Z',
+      endTime: '2026-09-07T00:02:00Z',
+      bucketSeconds: 60,
+    })) as Row[];
+
+    expect(full).toHaveLength(2);
+    expect(trimmed).toHaveLength(1);
+    expect(trimmed[0]?.['bucket_start']).toBe(full[1]?.['bucket_start']);
+    // Same bucket, same trades — but CVD equals the delta rather than the window total.
+    expect(Number(trimmed[0]?.['cvd'])).toBeCloseTo(Number(trimmed[0]?.['taker_delta']), 9);
+    expect(Number(full[1]?.['cvd'])).toBeCloseTo(-2.493, 9);
+    // If CVD were anchored to an absolute origin, the trimmed value would be -2.493.
+    expect(Number(trimmed[0]?.['cvd'])).not.toBeCloseTo(-2.493, 3);
+  });
+
   it('scopes a query to a price band in every mode', async () => {
     const { importRoot, service } = createWarehouse();
     const request = await importTapeFixture(service, importRoot);
@@ -951,8 +1125,53 @@ describe('WarehouseService order flow and series', () => {
       service.queryTrades({ ...request, limit: 10, minPrice: 90000, maxPrice: 80000 }),
     ).rejects.toThrow('minPrice must not exceed maxPrice.');
     await expect(service.queryTrades({ ...request, limit: 10, maxPrice: -1 })).rejects.toThrow(
-      'minPrice and maxPrice must be non-negative numbers.',
+      'maxPrice must be at least 0.',
     );
+  });
+
+  it('names the offending argument instead of failing in DuckDB', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = await importTapeFixture(service, importRoot);
+    // A value past Number.MAX_SAFE_INTEGER is still finite, so Number.isFinite would accept
+    // it and interpolate it. It then dies inside DuckDB with a cast error that names no
+    // argument, which is worse than saying which one was wrong.
+    const beyondSafe = Number.MAX_SAFE_INTEGER + 2;
+
+    await expect(
+      service.queryTrades({ ...request, limit: 10, minPrice: beyondSafe }),
+    ).rejects.toThrow('minPrice must be a safe integer');
+    await expect(
+      service.queryTrades({ ...request, limit: 10, minNotional: beyondSafe }),
+    ).rejects.toThrow('minNotional must be a safe integer');
+    await expect(service.queryTrades({ ...request, limit: 10, minSpan: 1.5 })).rejects.toThrow(
+      'minSpan must be an integer',
+    );
+
+    // Same treatment at the series boundary.
+    await expect(
+      service.querySeries({
+        dataset: 'metrics',
+        market: 'um',
+        symbol: 'NOPE',
+        percentage: Number.NaN,
+      }),
+    ).rejects.toThrow('percentage must be a finite number');
+    await expect(
+      service.querySeries({
+        dataset: 'metrics',
+        market: 'um',
+        symbol: 'NOPE',
+        percentage: -0.2,
+      }),
+    ).rejects.toThrow('percentage is only available for the bookdepth dataset');
+    await expect(
+      service.querySeries({
+        dataset: 'bookdepth',
+        market: 'um',
+        symbol: 'NOPE',
+        bucketSeconds: 2.5,
+      }),
+    ).rejects.toThrow('bucketSeconds must be a positive integer');
   });
 
   it('reports a null imbalance instead of failing when a bucket has no volume', async () => {

@@ -10,11 +10,18 @@ The warehouse is separate from the short-lived public API cache. It stores durab
 ## Read-first workflow
 
 1. Call `warehouse_status` when configuration matters.
-2. Call `warehouse_list_datasets` or `warehouse_data_range` before assuming data exists.
-3. Use `warehouse_query_candles` with the narrowest symbol, interval, time range, and limit needed.
-4. Use `warehouse_query_trades` with a market and either a narrow window or `bucketSeconds`.
-5. Use `warehouse_query_series` for the USD-M `metrics` and `bookdepth` snapshot datasets.
-6. State dataset, source, market, symbol, interval, earliest/latest time, and row count when available.
+2. Call `warehouse_coverage` before any multi-day analysis. A dataset's earliest and latest
+   time look continuous even when whole days in the middle were never imported, so
+   `warehouse_list_datasets` and `warehouse_data_range` cannot tell you a day is missing.
+3. Treat a gap as a finding, not a nuisance. Report which days are absent and never compute a
+   seven-day average over six days of data without saying so.
+4. Use `warehouse_query_candles` with the narrowest symbol, interval, time range, and limit needed.
+5. Use `warehouse_query_trades` with a market and either a narrow window or `bucketSeconds`.
+   Its `startTime` and `endTime` filter rows; the same bounds on `warehouse_data_range` only
+   select which files are read, so a narrow range against a daily archive still returns a
+   whole day of bounds.
+6. Use `warehouse_query_series` for the USD-M `metrics` and `bookdepth` snapshot datasets.
+7. State dataset, source, market, symbol, interval, earliest/latest time, and row count when available.
 
 ## Imports
 

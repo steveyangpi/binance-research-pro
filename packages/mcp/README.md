@@ -42,6 +42,7 @@ A Binance Spot and USD-M Futures research MCP server. Public analysis requires n
 | `warehouse_list_files`    | List managed Parquet files and import metadata            |
 | `warehouse_query_candles` | Query deduplicated historical Klines                      |
 | `warehouse_data_range`    | Get Kline row count and earliest/latest open time         |
+| `warehouse_coverage`      | List imported and missing UTC days for a dataset          |
 
 ### Optional read-only account tools
 

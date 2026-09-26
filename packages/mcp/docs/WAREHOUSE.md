@@ -165,13 +165,29 @@ Tape archives use the same tools with a different selection:
 Call warehouse_import_url with url=<official daily tape ZIP URL>,
 dataset=aggtrades, source=binance-public-data, profile=binance-agg-trades,
 market=spot, symbol=BTCUSDT, expectedSha256=<64-character SHA-256>.
-Call warehouse_data_range with dataset=aggtrades, market=spot, symbol=BTCUSDT.
+Call warehouse_data_range with dataset=aggtrades, market=spot, symbol=BTCUSDT,
+startTime=2026-08-01T00:00:00Z, endTime=2026-08-01T23:59:59Z.
 Call warehouse_query_trades with dataset=aggtrades, market=spot, symbol=BTCUSDT,
 startTime=2026-08-01T00:00:00Z, endTime=2026-08-01T01:00:00Z,
 bucketSeconds=60, limit=120.
 ```
 
 Do not pass `interval` for tape imports. Do not import the current or previous UTC day: Binance may republish those files, and a republished archive is merged rather than replaced.
+
+`warehouse_data_range` accepts `startTime` and `endTime` for tape datasets and is the only query here whose cost grows with the age of the warehouse rather than with the request: without a window it reads every file the symbol has ever produced. Pass a window unless you truly need the full span. The candle branch keeps its original contract and rejects the two time bounds.
+
+**The window selects files, it does not filter rows.** Binance publishes tape as one archive
+per day, so a one-hour window against a daily file still reads and reports that whole day. The
+returned `minEventTime` and `maxEventTime` are the bounds of the file, not of your window, and a
+1-hour request will typically come back with a 24-hour span. Use the window for cost control and
+`warehouse_query_trades` for the precise time bounds; the range tool answers "which days exist",
+never "what happened between 01:00 and 02:00".
+
+The range reports earliest and latest time only. It cannot tell you whether the days in between
+are present — a missing day leaves the range looking continuous. Ask `warehouse_coverage` instead:
+it counts distinct UTC days from the file bounds, returns the missing days, and reads no parquet
+payload, so it is cheap enough to run before every multi-day analysis. Tape datasets require
+`market` on that tool, because Spot and USD-M are separate file sets that must not be merged.
 
 ## Security and operations
 
