@@ -30,6 +30,14 @@ npm run test:mcp:live
 
 This calls Binance public endpoints. Record the endpoint, time, and regional/network limitations when reporting a failure. It is intentionally excluded from offline CI.
 
+The warehouse tape pipeline has its own opt-in gate:
+
+```powershell
+npm run test:warehouse:live
+```
+
+It imports one official daily aggregate-trade archive into a throwaway warehouse, re-imports it to confirm idempotency, then compares 60-second buckets against the official 1m Kline for the same window. Pass a symbol and UTC day to override the defaults (`npm run test:warehouse:live -- ETHUSDT 2026-08-01`). This is the only check that exercises the real HTTPS download path end to end, so run it after touching `download.ts`, the tape conversion, or the deduplication and bucketing SQL.
+
 Authenticated live tests are separate and manual. Use a newly created read-only Ed25519 profile outside the repository. Never place its files or values in CI. Start with `account_profiles_status`, then call only the surface-specific read that the profile declares.
 
 The manual publish workflow installs the exact registry artifact into an isolated temporary consumer in a separate `packages: read` job. Install scripts are disabled, and registry tokens are removed before the installed MCP CLI is started.

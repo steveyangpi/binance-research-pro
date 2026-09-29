@@ -4,7 +4,9 @@ import { DatabaseSync } from 'node:sqlite';
 import type {
   CandleSelection,
   ImportCompletion,
+  ImportProfile,
   ImportedParquetFile,
+  TapeFileWindow,
   WarehouseFileFilter,
   WarehouseImportRequest,
 } from './types.js';
@@ -37,6 +39,31 @@ function importOptionsKey(identity: ImportIdentity): string {
     hasHeader: identity.hasHeader ?? null,
     zipEntry: identity.zipEntry ?? null,
   });
+}
+
+/** Format an ISO instant the way DuckDB renders a naive UTC timestamp column. */
+function utcSecond(value: string): string {
+  return new Date(value).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/** UTC calendar day of an ISO instant, matching how bounds are stored. */
+function utcDay(value: string): string {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+/** Inclusive day range. Returns an empty list when either bound is absent or reversed. */
+function enumerateDays(from: string | null, to: string | null): string[] {
+  if (from === null || to === null) return [];
+  const days: string[] = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  // A selection spanning years would otherwise build a list longer than the query is useful
+  // for; two years is well past any realistic gap this tool is meant to surface.
+  while (cursor <= end && days.length < 800) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
 }
 
 export class WarehouseMetadataStore {
@@ -272,6 +299,7 @@ export class WarehouseMetadataStore {
     for (const [column, value] of [
       ['dataset', filter.dataset],
       ['source', filter.source],
+      ['market', filter.market],
       ['symbol', filter.symbol],
       ['interval', filter.interval],
     ] as const) {
@@ -307,6 +335,117 @@ export class WarehouseMetadataStore {
       .prepare(`SELECT path FROM parquet_files WHERE ${where.join(' AND ')} ORDER BY path`)
       .all(...values) as Array<{ path: string }>;
     return rows.map((row) => row.path);
+  }
+
+  /**
+   * Select tapes and series by market and, when a window is given, by file time overlap.
+   * Pruning at file granularity beats the year/month axis: a one-day query would
+   * otherwise read every file in the month.
+   */
+  public seriesFiles(
+    profile: ImportProfile,
+    selection: { dataset: string; market: string; symbol: string; source?: string },
+    window: TapeFileWindow,
+  ): string[] {
+    const where = ['profile = ?', 'dataset = ?', 'market = ?', 'symbol = ?'];
+    const values: string[] = [profile, selection.dataset, selection.market, selection.symbol];
+    if (selection.source !== undefined) {
+      where.push('source = ?');
+      values.push(selection.source);
+    }
+    // Stored bounds look like `YYYY-MM-DD HH:MM:SS[.ffffff]` in UTC. Comparing the
+    // first 19 characters keeps a fractional bound from excluding a matching file,
+    // so truncation can only widen the candidate set, never drop a needed file.
+    if (window.startTime !== undefined) {
+      where.push('(max_event_time IS NULL OR substr(max_event_time, 1, 19) >= ?)');
+      values.push(utcSecond(window.startTime));
+    }
+    if (window.endTime !== undefined) {
+      where.push('(min_event_time IS NULL OR substr(min_event_time, 1, 19) <= ?)');
+      values.push(utcSecond(window.endTime));
+    }
+    const rows = this.database
+      .prepare(`SELECT path FROM parquet_files WHERE ${where.join(' AND ')} ORDER BY path`)
+      .all(...values) as Array<{ path: string }>;
+    return rows.map((row) => row.path);
+  }
+
+  /**
+   * Per-day coverage for one selection, derived from the file-level time bounds already in
+   * `parquet_files`. `listDatasets` collapses a selection to a single MIN/MAX pair, which
+   * reads as continuous coverage even when whole days in the middle were never imported;
+   * this keeps the gaps visible without scanning any parquet payload.
+   *
+   * A day counts as covered when some file's bounds touch it, so a partially imported day
+   * is reported as covered. That is the intent: the answer is "is there tape for this day",
+   * and `dataRange` is the tool that measures how complete a covered day is.
+   */
+  public coverageGaps(
+    selection: {
+      profile?: ImportProfile;
+      dataset: string;
+      source?: string;
+      market?: string;
+      symbol?: string;
+    },
+    window: TapeFileWindow = {},
+  ): Record<string, unknown> {
+    const where: string[] = ['dataset = ?'];
+    const values: string[] = [selection.dataset];
+    for (const [column, value] of [
+      ['profile', selection.profile],
+      ['source', selection.source],
+      ['market', selection.market],
+      ['symbol', selection.symbol],
+    ] as const) {
+      if (value !== undefined) {
+        where.push(`${column} = ?`);
+        values.push(value);
+      }
+    }
+    if (window.startTime !== undefined) {
+      where.push('(max_event_time IS NULL OR substr(max_event_time, 1, 19) >= ?)');
+      values.push(utcSecond(window.startTime));
+    }
+    if (window.endTime !== undefined) {
+      where.push('(min_event_time IS NULL OR substr(min_event_time, 1, 19) <= ?)');
+      values.push(utcSecond(window.endTime));
+    }
+    const rows = this.database
+      .prepare(
+        `SELECT substr(min_event_time, 1, 10) AS min_day,
+                substr(max_event_time, 1, 10) AS max_day,
+                COUNT(*) AS file_count
+         FROM parquet_files ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+           AND min_event_time IS NOT NULL AND max_event_time IS NOT NULL
+         GROUP BY 1, 2 ORDER BY 1`,
+      )
+      .all(...values) as Array<{ min_day: string; max_day: string; file_count: number }>;
+
+    const covered = new Set<string>();
+    for (const row of rows) {
+      for (const day of enumerateDays(row.min_day, row.max_day)) covered.add(day);
+    }
+    const coveredDays = [...covered].sort();
+    const firstDay = coveredDays[0] ?? null;
+    const lastDay = coveredDays.at(-1) ?? null;
+    // With no window the expected range is the selection's own span, which is exactly the
+    // case that matters: a gap between the first and last imported day is otherwise
+    // invisible behind a min/max pair.
+    const expected = enumerateDays(
+      window.startTime === undefined ? firstDay : utcDay(window.startTime),
+      window.endTime === undefined ? lastDay : utcDay(window.endTime),
+    );
+    const missingDays = expected.filter((day) => !covered.has(day));
+    return {
+      coveredDayCount: coveredDays.length,
+      firstDay,
+      lastDay,
+      expectedDayCount: expected.length,
+      missingDays,
+      missingDayCount: missingDays.length,
+      coveredDays,
+    };
   }
 
   public close(): void {

@@ -28,22 +28,23 @@
 
 ## 环境变量
 
-| 变量                               | 默认值                     | 说明                                     |
-| ---------------------------------- | -------------------------- | ---------------------------------------- |
-| `BINANCE_RESEARCH_DATA_DIR`        | 当前系统用户数据目录       | 所有状态数据的根目录。                   |
-| `BINANCE_REST_BASE_URL`            | `https://api.binance.com`  | Spot 公共 REST 根地址。                  |
-| `BINANCE_FUTURES_REST_BASE_URL`    | `https://fapi.binance.com` | USDⓈ-M Futures 公共 REST 根地址。        |
-| `BINANCE_ACCOUNT_PROFILES_PATH`    | 未设置                     | 外部 Ed25519 USER_DATA Profile 文件。    |
-| `BINANCE_ACCOUNT_RECV_WINDOW_MS`   | `5000`                     | 签名请求窗口，最大 60000 毫秒。          |
-| `BINANCE_REQUEST_TIMEOUT_MS`       | `10000`                    | HTTP 超时，最大 60000 毫秒。             |
-| `BINANCE_CACHE_TTL_MS`             | `15000`                    | ticker、标记价格、盘口、持仓量缓存时间。 |
-| `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | K 线缓存时间。                           |
-| `BINANCE_FUNDING_CACHE_TTL_MS`     | `600000`                   | 资金费率历史缓存时间。                   |
-| `BINANCE_PERSISTENT_CACHE_ENABLED` | `true`                     | `false` 时只使用内存缓存。               |
-| `BINANCE_CACHE_MAX_ENTRIES`        | `10000`                    | SQLite 缓存最大条目数。                  |
-| `WAREHOUSE_ENABLED`                | `true`                     | `false` 时不注册 `warehouse_*` 工具。    |
-| `WAREHOUSE_MAX_IMPORT_BYTES`       | `536870912`                | 下载、输入文件或 ZIP 解压 CSV 的上限。   |
-| `WAREHOUSE_DOWNLOAD_TIMEOUT_MS`    | `120000`                   | HTTPS 下载总超时。                       |
+| 变量                               | 默认值                     | 说明                                      |
+| ---------------------------------- | -------------------------- | ----------------------------------------- |
+| `BINANCE_RESEARCH_DATA_DIR`        | 当前系统用户数据目录       | 所有状态数据的根目录。                    |
+| `BINANCE_REST_BASE_URL`            | `https://api.binance.com`  | Spot 公共 REST 根地址。                   |
+| `BINANCE_FUTURES_REST_BASE_URL`    | `https://fapi.binance.com` | USDⓈ-M Futures 公共 REST 根地址。         |
+| `BINANCE_ACCOUNT_PROFILES_PATH`    | 未设置                     | 外部 Ed25519 USER_DATA Profile 文件。     |
+| `BINANCE_ACCOUNT_RECV_WINDOW_MS`   | `5000`                     | 签名请求窗口，最大 60000 毫秒。           |
+| `BINANCE_REQUEST_TIMEOUT_MS`       | `10000`                    | HTTP 超时，最大 60000 毫秒。              |
+| `BINANCE_CACHE_TTL_MS`             | `15000`                    | ticker、标记价格、盘口、持仓量缓存时间。  |
+| `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | K 线缓存时间。                            |
+| `BINANCE_FUNDING_CACHE_TTL_MS`     | `600000`                   | 资金费率历史缓存时间。                    |
+| `BINANCE_PERSISTENT_CACHE_ENABLED` | `true`                     | `false` 时只使用内存缓存。                |
+| `BINANCE_CACHE_MAX_ENTRIES`        | `10000`                    | SQLite 缓存最大条目数。                   |
+| `WAREHOUSE_ENABLED`                | `true`                     | `false` 时不注册 `warehouse_*` 工具。     |
+| `WAREHOUSE_DUCKDB_MEMORY_LIMIT`    | 未设置                     | DuckDB 内存上限，例如 `1GB`，超出即溢写。 |
+| `WAREHOUSE_MAX_IMPORT_BYTES`       | `536870912`                | 下载、输入文件或 ZIP 解压 CSV 的上限。    |
+| `WAREHOUSE_DOWNLOAD_TIMEOUT_MS`    | `120000`                   | HTTPS 下载总超时。                        |
 
 以下高级变量优先级高于根目录派生值：
 

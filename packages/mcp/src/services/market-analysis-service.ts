@@ -1,7 +1,7 @@
 import type { BinanceApiClient } from '../binance/api-client.js';
 import type { AppConfig } from '../config.js';
 import type { CacheStore } from '../cache/cache-store.js';
-import { calculateIndicators } from './technical-indicators.js';
+import { calculateIndicators, INDICATOR_WARMUP_CANDLES } from './technical-indicators.js';
 
 export class MarketAnalysisService {
   public constructor(
@@ -16,6 +16,14 @@ export class MarketAnalysisService {
       this.config.BINANCE_CANDLE_CACHE_TTL_MS,
       () => this.client.getKlines(symbol, interval, limit),
     );
+  }
+
+  /**
+   * Indicators are computed on a longer series than the caller asked for, so a recursive
+   * average such as ema20 is not left sitting on its SMA seed.
+   */
+  private async indicatorCandles(symbol: string, interval: string, limit: number) {
+    return this.candles(symbol, interval, limit + INDICATOR_WARMUP_CANDLES);
   }
 
   public async marketOverview(symbol?: string) {
@@ -92,7 +100,7 @@ export class MarketAnalysisService {
   }
 
   public async indicatorAnalysis(symbol: string, interval: string, limit: number) {
-    const candles = await this.candles(symbol, interval, limit);
+    const candles = await this.indicatorCandles(symbol, interval, limit);
     const latest = candles.at(-1);
     if (latest === undefined) throw new Error('No candle data returned from Binance');
     const indicators = calculateIndicators(candles);
@@ -100,6 +108,8 @@ export class MarketAnalysisService {
       symbol,
       interval,
       candleCount: candles.length,
+      requestedCandles: limit,
+      warmupCandles: Math.max(0, candles.length - limit),
       latestClose: latest.close,
       closeTime: latest.closeTime,
       indicators,

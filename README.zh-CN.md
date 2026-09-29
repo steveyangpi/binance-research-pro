@@ -20,7 +20,7 @@ Binance Research Pro 是一个私有 monorepo，包含共同演进的交付物�
 .claude-plugin/plugin.json      Claude Code 插件清单
 .mcp.json                       Codex MCP 启动配置
 claude.mcp.json                 Claude Code MCP 启动配置
-skills/                         共享的 Spot、衍生品、历史数据和风险工作流
+skills/                         共享的 Spot、衍生品、历史数据、订单流和风险工作流
 packages/mcp/                   TypeScript MCP npm workspace
 scripts/                        跨交付物校验
 docs/                           架构、开发、发布与安全文档
@@ -72,6 +72,7 @@ Codex 适配层启动 [.mcp.json](.mcp.json) 中声明的固定私有包，并�
 | `BINANCE_CANDLE_CACHE_TTL_MS`      | `60000`                    | K 线缓存时间。                        |
 | `BINANCE_PERSISTENT_CACHE_ENABLED` | `true`                     | 设为 `false` 时仅使用内存缓存。       |
 | `WAREHOUSE_ENABLED`                | `true`                     | 设为 `false` 时隐藏仓库工具。         |
+| `WAREHOUSE_DUCKDB_MEMORY_LIMIT`    | 未设置                     | DuckDB 内存上限，例如 `1GB`。         |
 
 设置一个根目录即可整体迁移缓存和仓库状态，而无需写死机器路径：
 

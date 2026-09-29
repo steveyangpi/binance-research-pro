@@ -30,6 +30,14 @@ npm run test:mcp:live
 
 该命令会访问 Binance 公共端点。报告失败时应记录端点、时间和区域/网络限制。离线 CI 不运行它。
 
+逐笔仓库管线另有独立的可选测试：
+
+```powershell
+npm run test:warehouse:live
+```
+
+它会把一个官方日级聚合成交档案导入临时仓库，重复导入一次确认幂等，再把 60 秒分桶结果与同一窗口的官方 1m K 线对比。可通过参数覆盖默认标的与 UTC 日期（`npm run test:warehouse:live -- ETHUSDT 2026-08-01`）。这是唯一端到端覆盖真实 HTTPS 下载路径的检查，因此在改动 `download.ts`、逐笔转换或去重与分桶 SQL 之后都应运行。
+
 认证实时测试必须单独手动执行，并使用仓库外新建的只读 Ed25519 Profile。不得把凭据文件或值放入 CI。先调用 `account_profiles_status`，再只调用 Profile 声明市场对应的读取工具。
 
 手动发布工作流会在独立的 `packages: read` Job 中，把精确 registry 制品安装进隔离临时消费者目录。安装时禁用 lifecycle scripts；启动已安装 MCP CLI 前会清除 registry Token。

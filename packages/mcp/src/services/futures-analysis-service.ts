@@ -1,7 +1,7 @@
 import type { BinanceFuturesApiClient } from '../binance/futures-api-client.js';
 import type { CacheStore } from '../cache/cache-store.js';
 import type { AppConfig } from '../config.js';
-import { calculateIndicators } from './technical-indicators.js';
+import { calculateIndicators, INDICATOR_WARMUP_CANDLES } from './technical-indicators.js';
 
 export class FuturesAnalysisService {
   public constructor(
@@ -16,6 +16,10 @@ export class FuturesAnalysisService {
       this.config.BINANCE_CANDLE_CACHE_TTL_MS,
       () => this.client.getKlines(symbol, interval, limit),
     );
+  }
+
+  private async indicatorCandles(symbol: string, interval: string, limit: number) {
+    return this.candles(symbol, interval, limit + INDICATOR_WARMUP_CANDLES);
   }
 
   public async marketOverview(symbol?: string) {
@@ -91,7 +95,7 @@ export class FuturesAnalysisService {
 
   public async analyze(symbol: string, interval: string, limit: number) {
     const [candles, tickers, premium, openInterest] = await Promise.all([
-      this.candles(symbol, interval, limit),
+      this.indicatorCandles(symbol, interval, limit),
       this.marketOverview(symbol),
       this.markPrice(symbol),
       this.openInterest(symbol),
@@ -113,6 +117,8 @@ export class FuturesAnalysisService {
       symbol,
       interval,
       candleCount: candles.length,
+      requestedCandles: limit,
+      warmupCandles: Math.max(0, candles.length - limit),
       latestPrice: ticker.lastPrice,
       markPrice: premium.markPrice,
       indexPrice: premium.indexPrice,

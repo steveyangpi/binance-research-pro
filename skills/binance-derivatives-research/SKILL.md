@@ -15,6 +15,7 @@ Use the bundled public-data tools for market research. Account-specific reads be
 - Current open interest: `futures_open_interest`.
 - Futures OHLCV: `futures_candles`.
 - Spread and depth imbalance: `futures_order_book_snapshot`.
+- Realized aggressor flow (taker buy/sell volume, VWAP) over a past window: see the `binance-order-flow-research` skill, which also covers the USD-M snapshot series.
 - Combined contract analysis: `analyze_futures`.
 
 For a serious contract review, prefer `analyze_futures`, then add funding history or an order-book snapshot only when the question requires them. Avoid redundant calls.
@@ -27,5 +28,6 @@ For a serious contract review, prefer `analyze_futures`, then add funding histor
 4. Mark price is the risk and liquidation reference; last traded price can differ.
 5. Highlight leverage, liquidation, basis reversal, thin liquidity, and funding-cost risks.
 6. Never claim knowledge of the user's account, position, liquidation price, or risk tolerance.
+7. Order flow, open interest, and funding measure different things. A taker-imbalance reading from tape is realized aggression at that moment; it does not show whether positioning rose or fell, and it must not be combined with funding or open interest into a single directional claim.
 
 Return facts first, then interpretation, conflicting evidence, and a clear risk section.

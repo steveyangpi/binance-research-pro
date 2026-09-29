@@ -47,7 +47,7 @@ MCP Client -> 仓库工具 -> 串行导入队列 -> CSV/ZIP/Parquet
 
 ### 历史数据仓库
 
-`WarehouseService` 管理通用文件导入和 DuckDB 查询，`WarehouseMetadataStore` 仅保存任务、来源、SHA-256、数据范围和 Parquet 文件目录。Kline 采用一致列类型并按 `dataset/source/market/symbol/interval/import/year/month` 组织；查询基于元数据选择文件，再由 DuckDB 投影、过滤并按 `open_time` 去重。
+`WarehouseService` 管理通用文件导入和 DuckDB 查询，`WarehouseMetadataStore` 仅保存任务、来源、SHA-256、数据范围和 Parquet 文件目录。Kline 采用一致列类型并按 `dataset/source/market/symbol/interval/import/year/month` 组织；查询基于元数据选择文件，再由 DuckDB 投影、过滤并按 `open_time` 去重。逐笔数据集（`trades`、`aggtrades`）使用一对新的 typed 配置，路径中去掉 `interval` 段，并把 Binance 的四种批量布局归一为同一套列；去重键为 `(market, trade_id)`，因为 Spot 与 USD-M 的成交编号互相独立。逐笔查询会先用元数据中的 `min_event_time`/`max_event_time` 裁剪文件，并可按 `bucketSeconds` 聚合成桶而不是返回原始行；订单流过滤（名义额下限、扫单档数、按价位分组）复用同一条查询。USD-M 快照序列（`metrics`、`bookdepth`）通过共享的文件选择器复用同一套裁剪逻辑；区别在于它们的时间戳是朴素 UTC 字符串而非 epoch 数字，且按自然键去重而不是合成 ID。
 
 单个 MCP 进程内的写入通过 Promise 队列串行化。部署时也应只保留一个仓库写进程；其他进程可只读共享 Parquet，但不应同时修改同一元数据数据库。路径分区值只允许安全字符，本地文件必须位于 `WAREHOUSE_IMPORT_ROOTS`，下载只允许 HTTPS 并限制重定向、目标地址、文件大小和超时。
 

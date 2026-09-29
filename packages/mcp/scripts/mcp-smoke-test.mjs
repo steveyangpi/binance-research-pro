@@ -27,12 +27,15 @@ const expectedTools = [
   'multi_timeframe_analysis',
   'order_book_snapshot',
   'spot_account_overview',
+  'warehouse_coverage',
   'warehouse_data_range',
   'warehouse_import_file',
   'warehouse_import_url',
   'warehouse_list_datasets',
   'warehouse_list_files',
   'warehouse_query_candles',
+  'warehouse_query_series',
+  'warehouse_query_trades',
   'warehouse_status',
 ];
 const serverEntry = process.env.MCP_TEST_SERVER_ENTRY

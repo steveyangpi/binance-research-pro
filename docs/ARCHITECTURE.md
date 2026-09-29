@@ -35,7 +35,7 @@ No checkout path is needed at runtime. Package authentication is handled by npm/
 - Account-read layer: signed Spot and USD-M `USER_DATA` GET endpoints selected by an isolated profile ID. Responses are never cached or persisted.
 - Ephemeral cache: deduplicates concurrent requests and applies short TTLs.
 - Persistent cache: optional SQLite cache under the portable data directory.
-- History warehouse: DuckDB metadata plus partitioned Parquet files. Imports accept allowlisted local roots or validated HTTPS sources.
+- History warehouse: DuckDB metadata plus partitioned Parquet files for Klines and for Binance tape datasets (`trades`, `aggtrades`). Imports accept allowlisted local roots or validated HTTPS sources.
 
 ## Trust boundaries
 
