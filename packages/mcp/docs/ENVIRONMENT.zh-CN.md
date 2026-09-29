@@ -67,7 +67,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "--package=@steveyangpi/binance-research-pro-mcp@1.0.0",
+        "--package=@steveyangpi/binance-research-pro-mcp@1.1.0",
         "--",
         "binance-research-pro-mcp"
       ],
