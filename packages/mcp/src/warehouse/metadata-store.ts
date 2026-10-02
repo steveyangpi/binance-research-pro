@@ -387,6 +387,7 @@ export class WarehouseMetadataStore {
       source?: string;
       market?: string;
       symbol?: string;
+      interval?: string;
     },
     window: TapeFileWindow = {},
   ): Record<string, unknown> {
@@ -397,6 +398,7 @@ export class WarehouseMetadataStore {
       ['source', selection.source],
       ['market', selection.market],
       ['symbol', selection.symbol],
+      ['interval', selection.interval],
     ] as const) {
       if (value !== undefined) {
         where.push(`${column} = ?`);

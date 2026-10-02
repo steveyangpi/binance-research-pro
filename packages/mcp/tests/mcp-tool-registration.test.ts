@@ -251,6 +251,24 @@ describe('MCP tool registration contracts', () => {
     await expect(handler({ dataset: 'trades', symbol: 'BTCUSDT' })).resolves.toMatchObject({
       isError: true,
     });
+    await expect(
+      handler({ dataset: 'trades', market: 'spot', symbol: 'BTCUSDT', interval: '1m' }),
+    ).resolves.toMatchObject({ isError: true });
+  });
+
+  it('forwards interval to warehouse_coverage for the candles dataset', async () => {
+    const capture = new ToolCapture();
+    const calls: Array<[string, unknown[]]> = [];
+    const service = trackedService(calls) as Record<string, (...arguments_: unknown[]) => unknown>;
+    registerWarehouseTools(capture as unknown as McpServer, service as unknown as WarehouseService);
+
+    await invokeAll(capture, {
+      warehouse_coverage: { dataset: 'candles', market: 'spot', symbol: 'BTCUSDT', interval: '1h' },
+    });
+    expect(calls[0]).toEqual([
+      'coverage',
+      [{ dataset: 'candles', symbol: 'BTCUSDT', market: 'spot', interval: '1h' }, {}],
+    ]);
   });
 
   it('routes warehouse_data_range requests for tape datasets and validates both branches', async () => {

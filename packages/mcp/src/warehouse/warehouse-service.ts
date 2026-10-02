@@ -371,6 +371,9 @@ export class WarehouseService {
         ...(selection.symbol === undefined
           ? {}
           : { symbol: validatePartitionValue(selection.symbol, 'symbol') }),
+        ...(selection.interval === undefined
+          ? {}
+          : { interval: validatePartitionValue(selection.interval, 'interval') }),
       },
       window,
     );

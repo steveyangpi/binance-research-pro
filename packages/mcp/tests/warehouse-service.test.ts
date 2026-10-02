@@ -217,6 +217,50 @@ describe('WarehouseService', () => {
       }),
     ).rejects.toThrow('Only HTTPS');
   });
+
+  it('scopes candle coverage to the requested interval', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = {
+      dataset: 'candles',
+      source: 'fixture',
+      profile: 'binance-kline' as const,
+      market: 'spot',
+      symbol: 'BTCUSDT',
+    };
+    const kline = (openTime: number) =>
+      [openTime, '42000,42500,41900,42400,100', openTime + 3599999, '4220000,50,55,2320000,0'].join(
+        ',',
+      );
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'one-a.csv', kline(1704067200000)),
+      interval: '1h',
+    });
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'one-c.csv', kline(1704240000000)),
+      interval: '1h',
+    });
+    // Only the 1m series has 2024-01-02, so a 1h report that ignored interval would
+    // borrow that day and hide the gap.
+    await service.importFile({
+      ...request,
+      path: writeFixture(importRoot, 'one-b.csv', kline(1704153600000)),
+      interval: '1m',
+    });
+
+    const hourly = service.coverage({ ...request, interval: '1h' });
+    expect(hourly.coveredDays).toEqual(['2024-01-01', '2024-01-03']);
+    expect(hourly.coveredDayCount).toBe(2);
+    expect(hourly.missingDays).toContain('2024-01-02');
+    expect(hourly.firstDay).toBe('2024-01-01');
+    expect(hourly.lastDay).toBe('2024-01-03');
+
+    const minute = service.coverage({ ...request, interval: '1m' });
+    expect(minute.coveredDays).toEqual(['2024-01-02']);
+    expect(minute.firstDay).toBe('2024-01-02');
+    expect(minute.lastDay).toBe('2024-01-02');
+  });
 });
 
 // Fixtures mirror the real files: Spot has no header row, USD-M has one, and the two

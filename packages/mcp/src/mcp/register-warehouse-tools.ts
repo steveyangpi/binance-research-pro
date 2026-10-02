@@ -514,6 +514,11 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
         if (isTapeDataset(dataset) && market === undefined) {
           throw new Error(`warehouse_coverage requires market for the ${dataset} dataset.`);
         }
+        if (isTapeDataset(dataset) && interval !== undefined) {
+          throw new Error(
+            `warehouse_coverage does not accept interval for the ${dataset} dataset.`,
+          );
+        }
         return jsonResult(
           warehouse.coverage(
             {
