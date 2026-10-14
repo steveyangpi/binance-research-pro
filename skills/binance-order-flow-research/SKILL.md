@@ -84,29 +84,44 @@ metrics     five-minute open interest, top-trader and account long/short ratios,
 bookdepth   thirty-second cumulative depth per percentage band; negative is the bid side
 ```
 
-### The official taker ratio is not comparable to a computed imbalance
+### The official taker ratio: same estimator per bucket, different question per period
 
 The column sum_taker_long_short_vol_ratio is a **volume multiplier** — buy volume divided
-by sell volume. It is bounded below by zero and unbounded above, so it centres on 1, not on 0.
-A computed imbalance is a **signed share** centred on 0 and bounded by ±1. Comparing the raw
-ratio directly against an imbalance is a units mismatch, and it produces opposite signs on
-the same day.
+by sell volume within that five-minute row. It is bounded below by zero and unbounded above,
+so it centres on 1, not on 0. A computed imbalance is a **signed share** centred on 0 and
+bounded by ±1. Comparing the raw ratio against an imbalance is a units mismatch, and it
+produces opposite signs on the same day.
 
-Rescaling fixes the units but not the estimator:
+Rescaling maps one onto the other:
 
 ```text
 pm1 = (ratio - 1) / (ratio + 1)
 ```
 
-Do **not** treat the rescaled value as a cross-check on the tape. `sum_taker_long_short_vol_ratio`
-is the unweighted arithmetic mean of the five-minute ratios, while the tape imbalance is
-volume-weighted. Per-sample dispersion is extreme — observed five-minute ratios span roughly
-0.10 to 8.5 — so the right-skewed mean sits far above the volume-weighted value. Measured over
-14 recent days, 8 of them carry the opposite sign to the tape imbalance.
+**Per bucket, that rescaled value is algebraically the same estimator as the tape.** Both
+reduce to (buy − sell) / (buy + sell) over the same five minutes. Measured over 38 days of
+BTCUSDT futures, the rescaled official value and the tape's own bucket imbalance agree to a
+maximum absolute difference of **0.001** — the residual is Binance's volume accounting
+against the tape's. So per bucket it _is_ a valid cross-source check on the tape, and it
+passes. Keep using it that way.
 
-Report the two as two independent readings with two different estimators, never as agreement
-and never as a contradiction. Until the warehouse also exposes per-bucket taker buy and sell
-volume for the metrics dataset, a true volume-weighted comparison cannot be built.
+**Across a period, the two answer different questions and will diverge.** Averaging the
+five-minute ratios gives an _unweighted_ mean — "in a typical five-minute slice, which side
+was bigger". The tape's period imbalance, total net over total volume, is _volume-weighted_ —
+"over the period, which side traded more volume". Measured over the same 38 days, the two
+carry opposite signs on **10 days (26%)**; the densest fourteen-day window holds five.
+
+The divergence is not an error and is largest on high-volume days, because the unweighted
+mean is dominated by the many quiet slices where the ratio swings widest. Observed
+five-minute ratios over those 38 days run from **0.07 to 23.15**, so the mean sits far from
+the volume-weighted figure: on 08-19 the weighted reading was 0.100 against 0.031, and on
+09-21 0.048 against −0.014.
+
+Report the two as readings of two different estimators. Never present the weighted and
+unweighted numbers as corroborating each other, and never present a sign difference between
+them as a contradiction in the data. A true volume-weighted comparison cannot be built from
+the warehouse yet, because the metrics dataset publishes only the ratio and not per-bucket
+buy and sell volumes.
 
 ## Reading the columns
 
