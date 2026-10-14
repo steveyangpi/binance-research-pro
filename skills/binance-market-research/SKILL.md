@@ -27,6 +27,9 @@ Use the bundled `binance-research-pro` MCP tools. They require no Binance API ke
    `limit` so recursive averages are settled, and report `warmupCandles` and `candleCount`.
    Check `indicators.indicatorStatus` before quoting a value: a `degraded` ema20 is sitting on
    its SMA seed, and `insufficient_data` means the series was too short for that indicator.
+   Read `ok` as "computed", not as "fully settled" — the field flags one specific collision
+   (ema20 equalling sma20), not every indicator that is still on a seed value at its minimum
+   input. Rely on `warmupCandles`, not on `ok`, to know the series was long enough.
 3. A single order-book snapshot is transient and shows resting intent, not executed activity. Do not describe it as persistent buying or selling pressure, and do not present it as evidence of which side was aggressing. Realized aggressor flow comes from tape data, not from a book snapshot.
 4. Separate market facts, calculated indicators, interpretation, and limitations.
 5. Mention the latest data time. Report tool failures or insufficient data rather than filling gaps from memory.

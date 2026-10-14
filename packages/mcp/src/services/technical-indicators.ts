@@ -20,8 +20,8 @@ export type IndicatorResult = {
 
 /**
  * Extra candles fetched beyond the requested window so recursive indicators reach a settled
- * value. MACD is the binding constraint: its line needs 25 candles and its signal line needs
- * 9 more, so 34 is the smallest input that yields a real histogram.
+ * value. MACD is the binding constraint: its line's first value needs 26 candles and its
+ * signal line needs 9 more, so 34 is the smallest input that yields a real histogram.
  */
 export const INDICATOR_WARMUP_CANDLES = 60;
 
@@ -64,6 +64,18 @@ function describeIndicatorStatus(
         reason: `Needs at least ${requiredCandles} candles, received ${candleCount}.`,
       };
     }
+    // `degraded` is deliberately limited to ema20 at exactly 20 candles, and this is a
+    // decision rather than an oversight. At that input the recursion has no history, so the
+    // value is not an EMA at all: it is the SMA of the same window, and it comes back
+    // identical to sma20. A caller reading two equal numbers would conclude the trend is
+    // flat, so that specific case is worth flagging.
+    //
+    // rsi14, atr14 and macd are also un-settled at their own minimum (each is a seed from
+    // the first simple average) but they report their own quantity rather than a duplicate
+    // of a different indicator, so they are left as `ok`. The status field is therefore not
+    // a general "is this value settled?" oracle — it flags one specific collision. Treat
+    // `ok` as "computed", not as "fully warmed"; callers who care about settling should rely
+    // on the warmup candles the analysis services fetch, not on this field.
     if (name === 'ema20' && candleCount === INDICATOR_REQUIRED_CANDLES.ema20 - 1) {
       return {
         status: 'degraded',
@@ -73,7 +85,7 @@ function describeIndicatorStatus(
           'or rely on the warmup candles fetched for you.',
       };
     }
-    return { status: 'ok', requiredCandles, reason: 'Computed over a fully warmed series.' };
+    return { status: 'ok', requiredCandles, reason: 'Computed from the supplied series.' };
   };
   return {
     sma20: describe('sma20', result.sma20 !== null),
