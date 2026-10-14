@@ -501,7 +501,8 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
         'multi-day analysis: a min/max range looks continuous even when whole days in the ' +
         'middle were never imported, and this is what exposes that gap. A day with any ' +
         'data counts as covered; pair it with warehouse_data_range to judge how complete ' +
-        'each day is.',
+        'each day is. missingDayCount is always exact; when truncated is true the ' +
+        'missingDays list itself was cut short, so read the count rather than the list.',
       inputSchema: rangeSelectionSchema,
       outputSchema: jsonOutputSchema,
       annotations: localReadAnnotations,

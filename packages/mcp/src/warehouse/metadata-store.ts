@@ -51,19 +51,35 @@ function utcDay(value: string): string {
   return new Date(value).toISOString().slice(0, 10);
 }
 
-/** Inclusive day range. Returns an empty list when either bound is absent or reversed. */
-function enumerateDays(from: string | null, to: string | null): string[] {
-  if (from === null || to === null) return [];
-  const days: string[] = [];
+/** Cap on the day lists returned to a caller. Counts stay exact regardless of this. */
+const MAX_LISTED_DAYS = 800;
+
+/**
+ * Visit every UTC day in an inclusive range, unbounded.
+ *
+ * An earlier version capped the enumeration itself at 800 days, which meant a selection
+ * longer than that stopped being checked: every day past the cap was simply never compared,
+ * so real gaps were reported as covered. Walking must be unbounded for the counts to mean
+ * anything; only the lists handed back are capped.
+ */
+function forEachDay(from: string | null, to: string | null, visit: (day: string) => void): void {
+  if (from === null || to === null) return;
   const cursor = new Date(`${from}T00:00:00Z`);
   const end = new Date(`${to}T00:00:00Z`);
-  // A selection spanning years would otherwise build a list longer than the query is useful
-  // for; two years is well past any realistic gap this tool is meant to surface.
-  while (cursor <= end && days.length < 800) {
-    days.push(cursor.toISOString().slice(0, 10));
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(end.getTime())) return;
+  while (cursor <= end) {
+    visit(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
-  return days;
+}
+
+/** Inclusive day count. Zero when either bound is absent, unparseable or reversed. */
+function countDays(from: string | null, to: string | null): number {
+  if (from === null || to === null) return 0;
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
+  return Math.round((end - start) / 86_400_000) + 1;
 }
 
 export class WarehouseMetadataStore {
@@ -418,34 +434,42 @@ export class WarehouseMetadataStore {
         `SELECT substr(min_event_time, 1, 10) AS min_day,
                 substr(max_event_time, 1, 10) AS max_day,
                 COUNT(*) AS file_count
-         FROM parquet_files ${where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''}
+         FROM parquet_files WHERE ${where.join(' AND ')}
            AND min_event_time IS NOT NULL AND max_event_time IS NOT NULL
          GROUP BY 1, 2 ORDER BY 1`,
       )
       .all(...values) as Array<{ min_day: string; max_day: string; file_count: number }>;
 
     const covered = new Set<string>();
-    for (const row of rows) {
-      for (const day of enumerateDays(row.min_day, row.max_day)) covered.add(day);
-    }
+    for (const row of rows) forEachDay(row.min_day, row.max_day, (day) => covered.add(day));
     const coveredDays = [...covered].sort();
     const firstDay = coveredDays[0] ?? null;
     const lastDay = coveredDays.at(-1) ?? null;
     // With no window the expected range is the selection's own span, which is exactly the
     // case that matters: a gap between the first and last imported day is otherwise
     // invisible behind a min/max pair.
-    const expected = enumerateDays(
-      window.startTime === undefined ? firstDay : utcDay(window.startTime),
-      window.endTime === undefined ? lastDay : utcDay(window.endTime),
-    );
-    const missingDays = expected.filter((day) => !covered.has(day));
+    const expectedFrom = window.startTime === undefined ? firstDay : utcDay(window.startTime);
+    const expectedTo = window.endTime === undefined ? lastDay : utcDay(window.endTime);
+    // Counted by walking the range rather than by measuring a materialised list, so a span
+    // past the list cap still reports its gap count exactly. Membership is tested directly
+    // because a window's overlapping files can cover days beyond the window itself.
+    const expectedDayCount = countDays(expectedFrom, expectedTo);
+    const missingDays: string[] = [];
+    let missingDayCount = 0;
+    forEachDay(expectedFrom, expectedTo, (day) => {
+      if (covered.has(day)) return;
+      missingDayCount += 1;
+      if (missingDays.length < MAX_LISTED_DAYS) missingDays.push(day);
+    });
+    const truncated = missingDays.length < missingDayCount;
     return {
       coveredDayCount: coveredDays.length,
       firstDay,
       lastDay,
-      expectedDayCount: expected.length,
+      expectedDayCount,
       missingDays,
-      missingDayCount: missingDays.length,
+      missingDayCount,
+      truncated,
       coveredDays,
     };
   }

@@ -261,6 +261,90 @@ describe('WarehouseService', () => {
     expect(minute.firstDay).toBe('2024-01-02');
     expect(minute.lastDay).toBe('2024-01-02');
   });
+
+  it('counts coverage gaps beyond the returned-list cap', async () => {
+    // A three-year span cannot be built by importing files: one file per year/month would
+    // mean hundreds of imports, and a single wide file collapses its own interior to
+    // "covered". So the metadata rows go in directly, which is the layer under test.
+    const { directory } = createWarehouse();
+    const store = new WarehouseMetadataStore(join(directory, 'metadata.sqlite'));
+    const internals = store as unknown as { database: { exec: (sql: string) => void } };
+    try {
+      internals.database.exec(
+        `INSERT INTO import_jobs(id, source_uri, dataset, source, profile, market, symbol,
+                                 interval, options_key, checksum_sha256, input_size_bytes,
+                                 status, created_at)
+         VALUES ('job1', 'u', 'trades', 'src', 'binance-trades', 'spot', 'BTCUSDT',
+                 NULL, '{}', 'x', 1, 'completed', '2026-01-01T00:00:00Z')`,
+      );
+      // Daily files from 2023-01-01 to 2025-12-31 with one deliberate hole at day 900,
+      // which is past the 800-day list cap. A capped enumeration would report no gaps.
+      const hole = new Date('2023-01-01T00:00:00Z');
+      hole.setUTCDate(hole.getUTCDate() + 900);
+      const rows: string[] = [];
+      const cursor = new Date('2023-01-01T00:00:00Z');
+      while (cursor <= new Date('2025-12-31T00:00:00Z')) {
+        const day = cursor.toISOString().slice(0, 10);
+        if (day !== hole.toISOString().slice(0, 10)) {
+          rows.push(
+            `('job1', '/p/${day}.parquet', 'trades', 'src', 'binance-trades', 'spot', 'BTCUSDT',
+              NULL, 2023, 1, 1, 1, '${day} 00:00:00', '${day} 23:59:59', '2026-01-01T00:00:00Z')`,
+          );
+        }
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+      internals.database.exec(
+        `INSERT INTO parquet_files(import_id, path, dataset, source, profile, market, symbol,
+                                   interval, year, month, row_count, file_size_bytes,
+                                   min_event_time, max_event_time, created_at)
+         VALUES ${rows.join(',')}`,
+      );
+
+      const coverage = store.coverageGaps({ dataset: 'trades', market: 'spot', symbol: 'BTCUSDT' });
+      expect(coverage.expectedDayCount).toBe(1096);
+      expect(coverage.coveredDayCount).toBe(1095);
+      // The whole point: a gap past the list cap is still counted.
+      expect(coverage.missingDayCount).toBe(1);
+      expect(coverage.missingDays).toEqual([hole.toISOString().slice(0, 10)]);
+      expect(coverage.truncated).toBe(false);
+    } finally {
+      store.close();
+    }
+
+    // Two files three years apart in their own warehouse: the missing days exceed the cap,
+    // so the list is cut short and says so, while the count stays exact.
+    const { directory: wideDirectory } = createWarehouse();
+    const wide = new WarehouseMetadataStore(join(wideDirectory, 'metadata.sqlite'));
+    const wideInternals = wide as unknown as { database: { exec: (sql: string) => void } };
+    try {
+      wideInternals.database.exec(
+        `INSERT INTO import_jobs(id, source_uri, dataset, source, profile, market, symbol,
+                                 interval, options_key, checksum_sha256, input_size_bytes,
+                                 status, created_at)
+         VALUES ('job1', 'u', 'trades', 'src', 'binance-trades', 'spot', 'BTCUSDT',
+                 NULL, '{}', 'x', 1, 'completed', '2026-01-01T00:00:00Z')`,
+      );
+      wideInternals.database.exec(
+        `INSERT INTO parquet_files(import_id, path, dataset, source, profile, market, symbol,
+                                   interval, year, month, row_count, file_size_bytes,
+                                   min_event_time, max_event_time, created_at)
+         VALUES
+           ('job1', '/p/first.parquet', 'trades', 'src', 'binance-trades', 'spot', 'BTCUSDT',
+            NULL, 2024, 1, 1, 1, '2024-01-01 00:00:00', '2024-01-01 23:59:59', '2026-01-01T00:00:00Z'),
+           ('job1', '/p/last.parquet', 'trades', 'src', 'binance-trades', 'spot', 'BTCUSDT',
+            NULL, 2026, 12, 1, 1, '2026-12-31 00:00:00', '2026-12-31 23:59:59', '2026-01-01T00:00:00Z')`,
+      );
+      const later = wide.coverageGaps({ dataset: 'trades', market: 'spot', symbol: 'BTCUSDT' });
+      expect(later.expectedDayCount).toBe(1096);
+      expect(later.coveredDayCount).toBe(2);
+      expect(later.missingDayCount).toBe(1094);
+      // The list is capped, and the flag is what tells the caller to trust the count instead.
+      expect(later.missingDays).toHaveLength(800);
+      expect(later.truncated).toBe(true);
+    } finally {
+      wide.close();
+    }
+  });
 });
 
 // Fixtures mirror the real files: Spot has no header row, USD-M has one, and the two
