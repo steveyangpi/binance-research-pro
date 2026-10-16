@@ -67,7 +67,7 @@ The plugin needs no `env` by default. To keep using an existing data disk, confi
       "command": "npx",
       "args": [
         "-y",
-        "--package=@steveyangpi/binance-research-pro-mcp@1.1.0",
+        "--package=@steveyangpi/binance-research-pro-mcp@1.1.1",
         "--",
         "binance-research-pro-mcp"
       ],

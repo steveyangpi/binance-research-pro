@@ -7,7 +7,7 @@ Both plugin adapters launch the same immutable private package, not a repository
   "command": "npx",
   "args": [
     "-y",
-    "--package=@steveyangpi/binance-research-pro-mcp@1.1.0",
+    "--package=@steveyangpi/binance-research-pro-mcp@1.1.1",
     "--",
     "binance-research-pro-mcp"
   ]
