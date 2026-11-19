@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { WarehouseImportRequest } from '../warehouse/types.js';
-import { isTapeDataset } from '../warehouse/types.js';
+import { isSeriesDataset, isTapeDataset } from '../warehouse/types.js';
 import type { WarehouseService } from '../warehouse/warehouse-service.js';
 import { jsonOutputSchema, jsonResult, toolError } from './formatters.js';
 
@@ -56,22 +56,24 @@ const candleSelectionSchema = {
   symbol: partitionValueSchema.transform((value) => value.toUpperCase()),
   interval: partitionValueSchema,
 };
-/** `interval` becomes optional here so one tool can serve candles and tape. */
+/** `interval` becomes optional here so one tool can serve candles, tape and USD-M series. */
 const rangeSelectionSchema = {
   dataset: partitionValueSchema.default('candles'),
   source: partitionValueSchema.optional(),
-  market: partitionValueSchema.optional().describe('Required for tape datasets.'),
+  market: partitionValueSchema
+    .optional()
+    .describe('Required for tape datasets. Defaults to um for metrics and bookdepth.'),
   symbol: partitionValueSchema.transform((value) => value.toUpperCase()),
   interval: partitionValueSchema
     .optional()
-    .describe('Required for candles. Rejected for tape datasets.'),
+    .describe('Required for candles. Rejected for tape and series datasets.'),
   startTime: z
     .string()
     .datetime({ offset: true })
     .optional()
     .describe(
-      'Tape datasets only: bound the range to a window. Without one the range covers the ' +
-        'whole history for the symbol and scans every file, which is the slowest query here.',
+      'Tape and series datasets only: bound the range to a window. Without one the range covers ' +
+        'the whole history for the symbol and scans every file, which is the slowest query here.',
     ),
   endTime: z.string().datetime({ offset: true }).optional(),
 };
@@ -183,7 +185,13 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
       outputSchema: jsonOutputSchema,
       annotations: localReadAnnotations,
     },
-    () => jsonResult(warehouse.status()),
+    () => {
+      try {
+        return jsonResult(warehouse.status());
+      } catch (error) {
+        return toolError(error);
+      }
+    },
   );
 
   server.registerTool(
@@ -196,7 +204,13 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
       outputSchema: jsonOutputSchema,
       annotations: localReadAnnotations,
     },
-    () => jsonResult(warehouse.listDatasets()),
+    () => {
+      try {
+        return jsonResult(warehouse.listDatasets());
+      } catch (error) {
+        return toolError(error);
+      }
+    },
   );
 
   server.registerTool(
@@ -217,17 +231,22 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
       outputSchema: jsonOutputSchema,
       annotations: localReadAnnotations,
     },
-    ({ dataset, source, market, symbol, interval, limit }) =>
-      jsonResult(
-        warehouse.listFiles({
-          limit,
-          ...(dataset === undefined ? {} : { dataset }),
-          ...(source === undefined ? {} : { source }),
-          ...(market === undefined ? {} : { market }),
-          ...(symbol === undefined ? {} : { symbol: symbol.toUpperCase() }),
-          ...(interval === undefined ? {} : { interval }),
-        }),
-      ),
+    ({ dataset, source, market, symbol, interval, limit }) => {
+      try {
+        return jsonResult(
+          warehouse.listFiles({
+            limit,
+            ...(dataset === undefined ? {} : { dataset }),
+            ...(source === undefined ? {} : { source }),
+            ...(market === undefined ? {} : { market }),
+            ...(symbol === undefined ? {} : { symbol: symbol.toUpperCase() }),
+            ...(interval === undefined ? {} : { interval }),
+          }),
+        );
+      } catch (error) {
+        return toolError(error);
+      }
+    },
   );
 
   server.registerTool(
@@ -434,56 +453,83 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
     {
       title: 'Get historical data range',
       description:
-        'Return deduplicated row count and earliest/latest time for imported Klines, trades or ' +
-        'aggregate trades. Tape datasets accept startTime and endTime to bound the range; ' +
-        'without them the result spans the whole history for the symbol and every file is ' +
-        'scanned.',
+        'Return deduplicated row count and earliest/latest time for imported Klines, trades, ' +
+        'aggregate trades, or USD-M series (metrics, bookdepth). Tape and series datasets accept ' +
+        'startTime and endTime to bound the range; without them the result spans the whole ' +
+        'history for the symbol and every file is scanned.',
       inputSchema: rangeSelectionSchema,
       outputSchema: jsonOutputSchema,
       annotations: localReadAnnotations,
     },
     async ({ dataset, source, market, symbol, interval, startTime, endTime }) => {
       try {
-        if (!isTapeDataset(dataset)) {
-          if (interval === undefined) {
-            throw new Error('warehouse_data_range requires interval for the candles dataset.');
+        if (isTapeDataset(dataset)) {
+          if (market === undefined) {
+            throw new Error(`warehouse_data_range requires market for the ${dataset} dataset.`);
           }
-          if (startTime !== undefined || endTime !== undefined) {
+          if (interval !== undefined) {
             throw new Error(
-              'warehouse_data_range accepts startTime and endTime for tape datasets only.',
+              `warehouse_data_range does not accept interval for the ${dataset} dataset.`,
             );
           }
           return jsonResult(
-            await warehouse.candleDataRange({
-              dataset,
-              symbol,
-              interval,
-              ...(source === undefined ? {} : { source }),
-              ...(market === undefined ? {} : { market }),
-            }),
+            await warehouse.tapeDataRange(
+              {
+                dataset,
+                market,
+                symbol,
+                ...(source === undefined ? {} : { source }),
+              },
+              {
+                ...(startTime === undefined ? {} : { startTime }),
+                ...(endTime === undefined ? {} : { endTime }),
+              },
+            ),
           );
         }
-        if (market === undefined) {
-          throw new Error(`warehouse_data_range requires market for the ${dataset} dataset.`);
+        if (isSeriesDataset(dataset)) {
+          if (interval !== undefined) {
+            throw new Error(
+              `warehouse_data_range does not accept interval for the ${dataset} dataset.`,
+            );
+          }
+          const resolvedMarket = market ?? 'um';
+          if (resolvedMarket !== 'um') {
+            throw new Error(
+              `warehouse_data_range requires market 'um' for the ${dataset} dataset.`,
+            );
+          }
+          return jsonResult(
+            await warehouse.seriesDataRange(
+              {
+                dataset,
+                market: resolvedMarket,
+                symbol,
+                ...(source === undefined ? {} : { source }),
+              },
+              {
+                ...(startTime === undefined ? {} : { startTime }),
+                ...(endTime === undefined ? {} : { endTime }),
+              },
+            ),
+          );
         }
-        if (interval !== undefined) {
+        if (interval === undefined) {
+          throw new Error('warehouse_data_range requires interval for the candles dataset.');
+        }
+        if (startTime !== undefined || endTime !== undefined) {
           throw new Error(
-            `warehouse_data_range does not accept interval for the ${dataset} dataset.`,
+            'warehouse_data_range accepts startTime and endTime for tape and series datasets only.',
           );
         }
         return jsonResult(
-          await warehouse.tapeDataRange(
-            {
-              dataset,
-              market,
-              symbol,
-              ...(source === undefined ? {} : { source }),
-            },
-            {
-              ...(startTime === undefined ? {} : { startTime }),
-              ...(endTime === undefined ? {} : { endTime }),
-            },
-          ),
+          await warehouse.candleDataRange({
+            dataset,
+            symbol,
+            interval,
+            ...(source === undefined ? {} : { source }),
+            ...(market === undefined ? {} : { market }),
+          }),
         );
       } catch (error) {
         return toolError(error);
@@ -509,24 +555,35 @@ export function registerWarehouseTools(server: McpServer, warehouse: WarehouseSe
     },
     async ({ dataset, source, market, symbol, interval, startTime, endTime }) => {
       try {
-        if (!isTapeDataset(dataset) && interval === undefined) {
+        if (isTapeDataset(dataset)) {
+          if (market === undefined) {
+            throw new Error(`warehouse_coverage requires market for the ${dataset} dataset.`);
+          }
+          if (interval !== undefined) {
+            throw new Error(
+              `warehouse_coverage does not accept interval for the ${dataset} dataset.`,
+            );
+          }
+        } else if (isSeriesDataset(dataset)) {
+          if (interval !== undefined) {
+            throw new Error(
+              `warehouse_coverage does not accept interval for the ${dataset} dataset.`,
+            );
+          }
+          if (market !== undefined && market !== 'um') {
+            throw new Error(`warehouse_coverage requires market 'um' for the ${dataset} dataset.`);
+          }
+        } else if (interval === undefined) {
           throw new Error('warehouse_coverage requires interval for the candles dataset.');
         }
-        if (isTapeDataset(dataset) && market === undefined) {
-          throw new Error(`warehouse_coverage requires market for the ${dataset} dataset.`);
-        }
-        if (isTapeDataset(dataset) && interval !== undefined) {
-          throw new Error(
-            `warehouse_coverage does not accept interval for the ${dataset} dataset.`,
-          );
-        }
+        const resolvedMarket = isSeriesDataset(dataset) ? (market ?? 'um') : market;
         return jsonResult(
           warehouse.coverage(
             {
               dataset,
               symbol,
               ...(source === undefined ? {} : { source }),
-              ...(market === undefined ? {} : { market }),
+              ...(resolvedMarket === undefined ? {} : { market: resolvedMarket }),
               ...(interval === undefined ? {} : { interval }),
             },
             {

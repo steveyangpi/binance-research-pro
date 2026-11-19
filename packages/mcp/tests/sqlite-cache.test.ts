@@ -37,4 +37,26 @@ describe('SqliteCache', () => {
     expect(secondValue).toEqual(firstValue);
     expect(loaderCalls).toBe(1);
   });
+
+  it('bypasses cache reads and writes when ttlMs is zero', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'binance-mcp-cache-'));
+    temporaryDirectories.push(directory);
+    const cache = new SqliteCache(join(directory, 'cache.sqlite'), 100);
+    let loaderCalls = 0;
+    try {
+      const first = await cache.getOrLoad('spot:ticker:BTCUSDT', 0, async () => {
+        loaderCalls += 1;
+        return { lastPrice: 100 };
+      });
+      const second = await cache.getOrLoad('spot:ticker:BTCUSDT', 0, async () => {
+        loaderCalls += 1;
+        return { lastPrice: 101 };
+      });
+      expect(first).toEqual({ lastPrice: 100 });
+      expect(second).toEqual({ lastPrice: 101 });
+      expect(loaderCalls).toBe(2);
+    } finally {
+      cache.close();
+    }
+  });
 });

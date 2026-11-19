@@ -89,13 +89,14 @@ export class MarketAnalysisService {
       (sum, [price, quantity]) => sum + price * quantity,
       0,
     );
+    const totalNotional = bidNotional + askNotional;
     return {
       ...orderBook,
       bestBid,
       bestAsk,
       spread: bestAsk - bestBid,
-      spreadPercent: ((bestAsk - bestBid) / bestAsk) * 100,
-      bidAskImbalance: bidNotional / (bidNotional + askNotional),
+      spreadPercent: bestAsk === 0 ? null : ((bestAsk - bestBid) / bestAsk) * 100,
+      bidAskImbalance: totalNotional === 0 ? null : bidNotional / totalNotional,
     };
   }
 

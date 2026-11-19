@@ -39,9 +39,36 @@ const server = new McpServer(serverMetadata, {
 registerMarketTools(server, service);
 registerFuturesTools(server, futuresService);
 registerAccountTools(server, accountService);
-if (config.WAREHOUSE_ENABLED) {
-  registerWarehouseTools(server, new WarehouseService(config));
+const warehouse = config.WAREHOUSE_ENABLED ? new WarehouseService(config) : undefined;
+if (warehouse !== undefined) {
+  registerWarehouseTools(server, warehouse);
 }
 
+let shutdownPromise: Promise<void> | undefined;
+const shutdown = (): Promise<void> => {
+  shutdownPromise ??= (async () => {
+    try {
+      cache.close?.();
+    } catch {
+      // Ignore cleanup errors during process teardown.
+    }
+    try {
+      await warehouse?.close();
+    } catch {
+      // Ignore cleanup errors during process teardown.
+    }
+  })();
+  return shutdownPromise;
+};
+
 const transport = new StdioServerTransport();
+transport.onclose = () => {
+  void shutdown();
+};
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => {
+    void shutdown().finally(() => process.exit(0));
+  });
+}
+
 await server.connect(transport);

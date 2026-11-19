@@ -108,6 +108,7 @@ export async function downloadToFile(
   }
   if (response === undefined) throw new Error('Download did not return a response.');
   if ((response.statusCode ?? 0) < 200 || (response.statusCode ?? 0) >= 300) {
+    response.destroy();
     throw new Error(`Download failed with HTTP ${response.statusCode ?? 0}.`);
   }
 
@@ -116,6 +117,7 @@ export async function downloadToFile(
     Array.isArray(contentLength) ? contentLength[0] : (contentLength ?? 0),
   );
   if (declaredLength > maxBytes) {
+    response.destroy();
     throw new Error(`Download is larger than WAREHOUSE_MAX_IMPORT_BYTES (${maxBytes}).`);
   }
 

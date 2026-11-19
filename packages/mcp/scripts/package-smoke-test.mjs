@@ -92,10 +92,16 @@ try {
     ...process.env,
     MCP_TEST_COMMAND: process.platform === 'win32' ? process.execPath : installedCli,
     MCP_TEST_ARGS_JSON: JSON.stringify(process.platform === 'win32' ? [installedEntry] : []),
+    MCP_TEST_PRESERVE_DATA_DIR: 'true',
     BINANCE_RESEARCH_DATA_DIR: runtimeDataDirectory,
   };
   for (const name of [
     'BINANCE_ACCOUNT_PROFILES_PATH',
+    'BINANCE_CACHE_DB_PATH',
+    'WAREHOUSE_PARQUET_ROOT',
+    'WAREHOUSE_METADATA_DB_PATH',
+    'WAREHOUSE_TEMP_DIR',
+    'WAREHOUSE_IMPORT_ROOTS',
     'NODE_AUTH_TOKEN',
     'NPM_TOKEN',
     'GITHUB_TOKEN',

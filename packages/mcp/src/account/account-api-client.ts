@@ -118,7 +118,10 @@ export class AccountApiClient {
   private signer(profile: AccountProfile): Promise<Ed25519Signer> {
     let signer = this.signers.get(profile.id);
     if (!signer) {
-      signer = Ed25519Signer.fromProfile(profile);
+      signer = Ed25519Signer.fromProfile(profile).catch((error: unknown) => {
+        this.signers.delete(profile.id);
+        throw error;
+      });
       this.signers.set(profile.id, signer);
     }
     return signer;

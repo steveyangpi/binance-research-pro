@@ -144,4 +144,44 @@ describe('AccountApiClient', () => {
     expect(message).toContain('-2015');
     expect(message).not.toContain(fixture.apiKey);
   });
+
+  it('does not cache a failed signer load permanently', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'binance-account-client-'));
+    temporaryRoots.push(root);
+    const keyPath = join(root, 'private.pem');
+    const profilesPath = join(root, 'profiles.json');
+    await writeFile(
+      profilesPath,
+      JSON.stringify({
+        version: 1,
+        profiles: [
+          {
+            id: 'readonly',
+            keyType: 'ed25519',
+            apiKey: 'test-api-key-that-is-not-real',
+            privateKeyPath: './private.pem',
+            surfaces: ['spot'],
+            permissions: ['USER_DATA'],
+          },
+        ],
+      }),
+    );
+    const config = loadConfig({
+      BINANCE_ACCOUNT_PROFILES_PATH: profilesPath,
+      BINANCE_PERSISTENT_CACHE_ENABLED: 'false',
+    });
+    const client = new AccountApiClient(config, new AccountProfileStore(profilesPath));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }))));
+
+    await expect(client.get('spot', 'readonly', '/api/v3/account')).rejects.toThrow(
+      'Unable to read the private signing material',
+    );
+
+    const { privateKey } = generateKeyPairSync('ed25519');
+    await writeFile(keyPath, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+    await expect(client.get('spot', 'readonly', '/api/v3/account')).resolves.toMatchObject({
+      profileId: 'readonly',
+      data: { ok: true },
+    });
+  });
 });

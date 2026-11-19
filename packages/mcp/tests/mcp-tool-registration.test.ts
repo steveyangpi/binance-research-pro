@@ -315,6 +315,84 @@ describe('MCP tool registration contracts', () => {
     ).resolves.toMatchObject({ isError: true });
   });
 
+  it('routes warehouse_coverage and warehouse_data_range for USD-M series datasets', async () => {
+    const capture = new ToolCapture();
+    const calls: Array<[string, unknown[]]> = [];
+    const service = trackedService(calls) as Record<string, (...arguments_: unknown[]) => unknown>;
+    registerWarehouseTools(capture as unknown as McpServer, service as unknown as WarehouseService);
+
+    await invokeAll(capture, {
+      warehouse_coverage: {
+        dataset: 'metrics',
+        symbol: 'BTCUSDT',
+        startTime: '2026-08-01T00:00:00Z',
+        endTime: '2026-08-03T23:59:59Z',
+      },
+      warehouse_data_range: {
+        dataset: 'bookdepth',
+        symbol: 'BTCUSDT',
+        startTime: '2026-08-01T00:00:00Z',
+        endTime: '2026-08-01T23:59:59Z',
+      },
+    });
+
+    expect(calls).toEqual([
+      [
+        'coverage',
+        [
+          { dataset: 'metrics', symbol: 'BTCUSDT', market: 'um' },
+          { startTime: '2026-08-01T00:00:00Z', endTime: '2026-08-03T23:59:59Z' },
+        ],
+      ],
+      [
+        'seriesDataRange',
+        [
+          { dataset: 'bookdepth', market: 'um', symbol: 'BTCUSDT' },
+          { startTime: '2026-08-01T00:00:00Z', endTime: '2026-08-01T23:59:59Z' },
+        ],
+      ],
+    ]);
+
+    const coverageHandler = capture.handlers.get('warehouse_coverage')!;
+    const rangeHandler = capture.handlers.get('warehouse_data_range')!;
+    await expect(
+      coverageHandler({ dataset: 'metrics', market: 'spot', symbol: 'BTCUSDT' }),
+    ).resolves.toMatchObject({ isError: true });
+    await expect(
+      coverageHandler({ dataset: 'bookdepth', symbol: 'BTCUSDT', interval: '1h' }),
+    ).resolves.toMatchObject({ isError: true });
+    await expect(
+      rangeHandler({ dataset: 'metrics', market: 'spot', symbol: 'BTCUSDT' }),
+    ).resolves.toMatchObject({ isError: true });
+    await expect(
+      rangeHandler({ dataset: 'bookdepth', symbol: 'BTCUSDT', interval: '1h' }),
+    ).resolves.toMatchObject({ isError: true });
+  });
+
+  it('converts synchronous warehouse status and listing failures to MCP tool errors', async () => {
+    const capture = new ToolCapture();
+    registerWarehouseTools(
+      capture as unknown as McpServer,
+      {
+        status: () => {
+          throw new Error('database busy');
+        },
+        listDatasets: () => {
+          throw new Error('database busy');
+        },
+        listFiles: () => {
+          throw new Error('database busy');
+        },
+      } as unknown as WarehouseService,
+    );
+
+    expect(capture.handlers.get('warehouse_status')!({})).toMatchObject({ isError: true });
+    expect(capture.handlers.get('warehouse_list_datasets')!({})).toMatchObject({ isError: true });
+    expect(capture.handlers.get('warehouse_list_files')!({ limit: 10 })).toMatchObject({
+      isError: true,
+    });
+  });
+
   it('converts service failures to MCP tool errors', async () => {
     const capture = new ToolCapture();
     registerMarketTools(

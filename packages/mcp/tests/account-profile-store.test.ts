@@ -96,4 +96,19 @@ describe('AccountProfileStore', () => {
 
     await expect(store.status()).rejects.toThrow('Account profile surfaces must be unique.');
   });
+
+  it('recovers after a transient failure to read the credentials file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'binance-account-profiles-'));
+    temporaryRoots.push(root);
+    const path = join(root, 'profiles.json');
+    const store = new AccountProfileStore(path);
+
+    await expect(store.status()).rejects.toThrow('Unable to read the account credentials file.');
+
+    await writeFile(path, JSON.stringify({ version: 1, profiles: [spotProfile] }), 'utf8');
+    await expect(store.status()).resolves.toMatchObject({
+      configured: true,
+      profiles: [{ id: 'spot-read' }],
+    });
+  });
 });

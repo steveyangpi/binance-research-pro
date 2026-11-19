@@ -67,7 +67,7 @@ export class AccountConfigurationError extends Error {
 }
 
 export class AccountProfileStore {
-  private profilesPromise?: Promise<AccountProfile[]>;
+  private profilesPromise: Promise<AccountProfile[]> | undefined;
 
   public constructor(private readonly profilesPath?: string) {}
 
@@ -120,7 +120,12 @@ export class AccountProfileStore {
   }
 
   private loadProfiles(): Promise<AccountProfile[]> {
-    this.profilesPromise ??= this.readProfiles();
+    if (!this.profilesPromise) {
+      this.profilesPromise = this.readProfiles().catch((error: unknown) => {
+        this.profilesPromise = undefined;
+        throw error;
+      });
+    }
     return this.profilesPromise;
   }
 

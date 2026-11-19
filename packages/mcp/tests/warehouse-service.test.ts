@@ -303,6 +303,8 @@ describe('WarehouseService', () => {
       const coverage = store.coverageGaps({ dataset: 'trades', market: 'spot', symbol: 'BTCUSDT' });
       expect(coverage.expectedDayCount).toBe(1096);
       expect(coverage.coveredDayCount).toBe(1095);
+      expect(coverage.coveredDays).toHaveLength(800);
+      expect(coverage.coveredDaysTruncated).toBe(true);
       // The whole point: a gap past the list cap is still counted.
       expect(coverage.missingDayCount).toBe(1);
       expect(coverage.missingDays).toEqual([hole.toISOString().slice(0, 10)]);
@@ -1267,12 +1269,15 @@ describe('WarehouseService order flow and series', () => {
 
     await expect(
       service.queryTrades({ ...request, limit: 10, minPrice: beyondSafe }),
-    ).rejects.toThrow('minPrice must be a safe integer');
+    ).rejects.toThrow('minPrice must be at most');
     await expect(
       service.queryTrades({ ...request, limit: 10, minNotional: beyondSafe }),
-    ).rejects.toThrow('minNotional must be a safe integer');
+    ).rejects.toThrow('minNotional must be at most');
     await expect(service.queryTrades({ ...request, limit: 10, minSpan: 1.5 })).rejects.toThrow(
       'minSpan must be an integer',
+    );
+    await expect(service.queryTrades({ ...request, limit: 0 })).rejects.toThrow(
+      'limit must be at least 1.',
     );
 
     // Same treatment at the series boundary.
@@ -1282,6 +1287,7 @@ describe('WarehouseService order flow and series', () => {
         market: 'um',
         symbol: 'NOPE',
         percentage: Number.NaN,
+        limit: 10,
       }),
     ).rejects.toThrow('percentage must be a finite number');
     await expect(
@@ -1290,6 +1296,7 @@ describe('WarehouseService order flow and series', () => {
         market: 'um',
         symbol: 'NOPE',
         percentage: -0.2,
+        limit: 10,
       }),
     ).rejects.toThrow('percentage is only available for the bookdepth dataset');
     await expect(
@@ -1298,8 +1305,110 @@ describe('WarehouseService order flow and series', () => {
         market: 'um',
         symbol: 'NOPE',
         bucketSeconds: 2.5,
+        limit: 10,
       }),
     ).rejects.toThrow('bucketSeconds must be a positive integer');
+    await expect(
+      service.querySeries({
+        dataset: 'bookdepth',
+        market: 'um',
+        symbol: 'NOPE',
+        bucketSeconds: 0,
+        limit: 10,
+      }),
+    ).rejects.toThrow('bucketSeconds must be a positive integer');
+    await expect(
+      service.querySeries({
+        dataset: 'bookdepth',
+        market: 'um',
+        symbol: 'NOPE',
+        limit: 0,
+      }),
+    ).rejects.toThrow('limit must be at least 1.');
+  });
+
+  it('accepts decimal minPrice, maxPrice and minNotional values', async () => {
+    const { importRoot, service } = createWarehouse();
+    const request = await importTapeFixture(service, importRoot);
+    // Fixture rows: 80341.83 * 0.007 = 562.39281 and 80350.00 * 2.5 = 200875.
+
+    const decimalBand = (await service.queryTrades({
+      ...request,
+      limit: 10,
+      minPrice: 80341.5,
+      maxPrice: 80342.25,
+    })) as Row[];
+    expect(decimalBand).toHaveLength(1);
+    expect(decimalBand[0]).toMatchObject({ agg_trade_id: '4056677592', price: 80341.83 });
+
+    const decimalNotional = (await service.queryTrades({
+      ...request,
+      limit: 10,
+      minNotional: 562.5,
+    })) as Row[];
+    expect(decimalNotional).toHaveLength(1);
+    expect(decimalNotional[0]).toMatchObject({ agg_trade_id: '7000000001' });
+
+    // Sub-dollar assets rely on fractional bounds.
+    await service.importFile({
+      dataset: 'aggtrades',
+      source: 'fixture',
+      profile: 'binance-agg-trades',
+      market: 'spot',
+      symbol: 'DOGEUSDT',
+      path: writeFixture(
+        importRoot,
+        'doge.csv',
+        [
+          '1,0.12345,1000,1,1,1788739200000000,False,True',
+          '2,0.14567,2000,2,2,1788739260000000,True,True',
+        ].join('\n'),
+      ),
+    });
+    const dogeBand = (await service.queryTrades({
+      dataset: 'aggtrades',
+      market: 'spot',
+      symbol: 'DOGEUSDT',
+      limit: 10,
+      minPrice: 0.13,
+      maxPrice: 0.15,
+    })) as Row[];
+    expect(dogeBand).toHaveLength(1);
+    expect(dogeBand[0]).toMatchObject({ agg_trade_id: '2', price: 0.14567 });
+  });
+
+  it('ignores deleted Parquet files when reporting coverage', async () => {
+    const { importRoot, service } = createWarehouse();
+    const first = await service.importFile({
+      path: writeFixture(importRoot, 'sep.csv', SPOT_TRADES_CSV),
+      dataset: 'trades',
+      source: 'fixture',
+      profile: 'binance-trades',
+      market: 'spot',
+      symbol: 'BTCUSDT',
+    });
+    await service.importFile({
+      path: writeFixture(
+        importRoot,
+        'oct.csv',
+        '7000000001,90000.00,0.00100,90.0000000,1790812800000000,False,True',
+      ),
+      dataset: 'trades',
+      source: 'fixture',
+      profile: 'binance-trades',
+      market: 'spot',
+      symbol: 'BTCUSDT',
+    });
+
+    rmSync(first.files[0]!.path, { force: true });
+    const coverage = service.coverage({
+      dataset: 'trades',
+      source: 'fixture',
+      market: 'spot',
+      symbol: 'BTCUSDT',
+    });
+    expect(coverage.coveredDayCount).toBe(1);
+    expect(coverage.coveredDays).toEqual(['2026-10-01']);
   });
 
   it('reports a null imbalance instead of failing when a bucket has no volume', async () => {
@@ -1371,6 +1480,35 @@ describe('WarehouseService order flow and series', () => {
     expect(bucketed[0]?.['sum_open_interest_avg']).toBeCloseTo((109489.826 + 109479.913) / 2, 3);
     expect(bucketed[0]?.['sum_open_interest_last']).toBeCloseTo(109479.913, 3);
     expect(bucketed[0]?.['sum_open_interest_min']).toBeCloseTo(109479.913, 3);
+
+    await expect(
+      service.seriesDataRange({
+        dataset: 'metrics',
+        source: 'fixture',
+        market: 'um',
+        symbol: 'BTCUSDT',
+      }),
+    ).resolves.toMatchObject({
+      dataset: 'metrics',
+      market: 'um',
+      symbol: 'BTCUSDT',
+      rowCount: 2,
+      minEventTime: '2026-08-01 00:00:00',
+      maxEventTime: '2026-08-01 00:05:00',
+    });
+
+    expect(
+      service.coverage({
+        dataset: 'metrics',
+        source: 'fixture',
+        market: 'um',
+        symbol: 'BTCUSDT',
+      }),
+    ).toMatchObject({
+      coveredDayCount: 1,
+      coveredDays: ['2026-08-01'],
+      missingDayCount: 0,
+    });
   });
 
   it('imports book depth, keeps the sign of the band and filters by it', async () => {

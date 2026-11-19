@@ -246,8 +246,12 @@ function safeNumber(
   if (integer ? !Number.isInteger(value) : !Number.isFinite(value)) {
     throw new Error(`${name} must be ${integer ? 'an integer' : 'a finite number'}.`);
   }
-  if (!Number.isSafeInteger(value)) {
-    throw new Error(`${name} must be a safe integer, at most ${Number.MAX_SAFE_INTEGER}.`);
+  if (integer) {
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(`${name} must be a safe integer, at most ${Number.MAX_SAFE_INTEGER}.`);
+    }
+  } else if (Math.abs(value) > Number.MAX_SAFE_INTEGER) {
+    throw new Error(`${name} must be at most ${Number.MAX_SAFE_INTEGER}.`);
   }
   if (minimum !== undefined && value < minimum) {
     throw new Error(`${name} must be at least ${minimum}.`);
@@ -376,11 +380,13 @@ export class WarehouseService {
           : { interval: validatePartitionValue(selection.interval, 'interval') }),
       },
       window,
+      (path) => existsSync(path) && isPathInside(resolve(path), this.parquetRoot),
     );
   }
 
   public async queryCandles(query: CandleQuery): Promise<unknown[]> {
     const selection = this.prepareCandleSelection(query);
+    safeNumber(query.limit, 'limit', { integer: true, minimum: 1 });
     const files = this.existingCandleFiles(selection);
     if (files.length === 0) return [];
     const conditions: string[] = [];
@@ -437,10 +443,14 @@ export class WarehouseService {
    */
   public async queryTrades(query: TapeQuery): Promise<unknown[]> {
     const prepared = this.prepareTapeSelection(query);
+    safeNumber(query.limit, 'limit', { integer: true, minimum: 1 });
     if (query.groupBy !== undefined && query.groupBy !== 'price') {
       throw new Error("groupBy only accepts 'price'.");
     }
     const bucketSeconds = query.bucketSeconds;
+    if (bucketSeconds !== undefined) {
+      safeNumber(bucketSeconds, 'bucketSeconds', { integer: true, minimum: 1 });
+    }
     if (query.groupBy === 'price') {
       if (bucketSeconds === undefined) {
         throw new Error(
@@ -491,6 +501,37 @@ export class WarehouseService {
     };
   }
 
+  public async seriesDataRange(
+    selection: SeriesSelection,
+    window: TapeFileWindow = {},
+  ): Promise<Record<string, unknown>> {
+    const prepared = this.prepareSeriesSelection(selection);
+    const variant = SERIES_VARIANTS[prepared.dataset];
+    const files = this.existingSeriesFiles(prepared, window);
+    if (files.length === 0) {
+      return { ...prepared, rowCount: 0, minEventTime: null, maxEventTime: null };
+    }
+    const dedupKey = ['market', 'symbol', 'event_time', ...variant.keyColumns].join(', ');
+    const rows = await this.readRows(`
+      WITH deduplicated AS (
+        SELECT event_time
+        FROM read_parquet([${files.map(sqlString).join(', ')}], union_by_name = true)
+        QUALIFY row_number() OVER (
+          PARTITION BY ${dedupKey} ORDER BY imported_at DESC
+        ) = 1
+      )
+      SELECT COUNT(*) AS row_count, MIN(event_time) AS min_event_time,
+             MAX(event_time) AS max_event_time
+      FROM deduplicated`);
+    const row = rows[0];
+    return {
+      ...prepared,
+      rowCount: Number(row?.['row_count'] ?? 0),
+      minEventTime: this.optionalText(row?.['min_event_time']) ?? null,
+      maxEventTime: this.optionalText(row?.['max_event_time']) ?? null,
+    };
+  }
+
   /**
    * Snapshot series query. Row level by default; per-bucket averages when `bucketSeconds`
    * is set. Bucket rows keep any extra key column (book depth keeps its percentage band),
@@ -512,9 +553,13 @@ export class WarehouseService {
         throw new Error('percentage is only available for the bookdepth dataset.');
       }
     }
-    if (query.bucketSeconds !== undefined && !Number.isInteger(query.bucketSeconds)) {
+    if (
+      query.bucketSeconds !== undefined &&
+      (!Number.isSafeInteger(query.bucketSeconds) || query.bucketSeconds < 1)
+    ) {
       throw new Error('bucketSeconds must be a positive integer.');
     }
+    safeNumber(query.limit, 'limit', { integer: true, minimum: 1 });
     const files = this.existingSeriesFiles(prepared, query);
     if (files.length === 0) return [];
 

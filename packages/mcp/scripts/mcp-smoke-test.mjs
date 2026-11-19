@@ -1,5 +1,7 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import {
   getDefaultEnvironment,
@@ -53,9 +55,25 @@ const serverEnvironment = Object.fromEntries(
       value !== undefined && (name.startsWith('BINANCE_') || name.startsWith('WAREHOUSE_')),
   ),
 );
-// The default handshake must be deterministic on machines that have real account profiles.
-// Authenticated behavior is covered by isolated unit tests and explicit manual live checks.
+// The default handshake must be deterministic on machines that have real account profiles
+// or host-configured storage directories.
 delete serverEnvironment.BINANCE_ACCOUNT_PROFILES_PATH;
+const preserveHostDataDir = process.env.MCP_TEST_PRESERVE_DATA_DIR === 'true';
+const temporaryDataDirectory = preserveHostDataDir
+  ? undefined
+  : mkdtempSync(join(tmpdir(), 'binance-research-pro-smoke-'));
+if (temporaryDataDirectory !== undefined) {
+  for (const name of [
+    'BINANCE_CACHE_DB_PATH',
+    'WAREHOUSE_PARQUET_ROOT',
+    'WAREHOUSE_METADATA_DB_PATH',
+    'WAREHOUSE_TEMP_DIR',
+    'WAREHOUSE_IMPORT_ROOTS',
+  ]) {
+    delete serverEnvironment[name];
+  }
+  serverEnvironment.BINANCE_RESEARCH_DATA_DIR = temporaryDataDirectory;
+}
 Object.assign(serverEnvironment, getDefaultEnvironment());
 const transport = new StdioClientTransport({
   command: serverCommand,
@@ -148,13 +166,21 @@ try {
 
     const futuresResult = await client.callTool({
       name: 'futures_market_overview',
-      arguments: { symbol: 'KORUUSDT' },
+      arguments: { symbol: 'BTCUSDT' },
     });
     if (futuresResult.isError) {
       throw new Error('Live futures_market_overview call returned an MCP tool error');
     }
-    console.log('Live Binance Futures call passed for KORUUSDT.');
+    console.log('Live Binance Futures call passed for BTCUSDT.');
   }
 } finally {
   await client.close();
+  if (temporaryDataDirectory !== undefined) {
+    rmSync(temporaryDataDirectory, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 50,
+    });
+  }
 }

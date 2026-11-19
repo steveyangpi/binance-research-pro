@@ -38,7 +38,10 @@ export class FuturesAnalysisService {
     );
     return {
       ...result,
-      basisPercent: ((result.markPrice - result.indexPrice) / result.indexPrice) * 100,
+      basisPercent:
+        result.indexPrice === 0
+          ? null
+          : ((result.markPrice - result.indexPrice) / result.indexPrice) * 100,
       fundingRatePercent: result.lastFundingRate * 100,
     };
   }
@@ -88,7 +91,7 @@ export class FuturesAnalysisService {
       bestBid,
       bestAsk,
       spread: bestAsk - bestBid,
-      spreadPercent: ((bestAsk - bestBid) / bestAsk) * 100,
+      spreadPercent: bestAsk === 0 ? null : ((bestAsk - bestBid) / bestAsk) * 100,
       bidAskImbalance: totalNotional === 0 ? null : bidNotional / totalNotional,
     };
   }

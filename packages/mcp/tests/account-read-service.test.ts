@@ -148,4 +148,29 @@ describe('AccountReadService', () => {
       tradeId: null,
     });
   });
+
+  it('accepts scientific-notation decimal strings without precision loss', async () => {
+    const fixture = serviceFor({
+      accountType: 'SPOT',
+      updateTime: 1_750_000_000_000,
+      balances: [
+        { asset: 'SHIB', free: '1e-8', locked: '2.5E-7' },
+        { asset: 'ZERO', free: '0e-8', locked: '0' },
+      ],
+    });
+
+    await expect(fixture.service.spotAccountOverview('readonly')).resolves.toEqual({
+      profileId: 'readonly',
+      accountType: 'SPOT',
+      updateTime: 1_750_000_000_000,
+      balances: [
+        {
+          asset: 'SHIB',
+          free: '1e-8',
+          locked: '2.5E-7',
+          total: '0.00000026',
+        },
+      ],
+    });
+  });
 });

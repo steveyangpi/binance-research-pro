@@ -24,6 +24,7 @@ export class SqliteCache implements CacheStore {
     this.database.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA synchronous = NORMAL;
+      PRAGMA busy_timeout = 5000;
       CREATE TABLE IF NOT EXISTS cache_entries (
         key TEXT PRIMARY KEY,
         value_json TEXT NOT NULL,
@@ -36,14 +37,16 @@ export class SqliteCache implements CacheStore {
   }
 
   public async getOrLoad<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-    const cached = this.read<T>(key);
-    if (cached !== undefined) return cached;
+    if (ttlMs > 0) {
+      const cached = this.read<T>(key);
+      if (cached !== undefined) return cached;
+    }
 
     const pending = this.inFlight.get(key) as Promise<T> | undefined;
     if (pending !== undefined) return pending;
 
     const loadPromise = loader().then((value) => {
-      this.write(key, value, ttlMs);
+      if (ttlMs > 0) this.write(key, value, ttlMs);
       return value;
     });
     this.inFlight.set(key, loadPromise);

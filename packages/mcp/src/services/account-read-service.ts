@@ -5,7 +5,7 @@ import type { AccountProfileStore } from '../account/account-profile-store.js';
 const numericString = z
   .string()
   .max(128)
-  .regex(/^-?\d+(?:\.\d+)?$/);
+  .regex(/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/);
 const integerIdentifier = z.union([
   z.number().int().safe(),
   z
@@ -15,12 +15,22 @@ const integerIdentifier = z.union([
 ]);
 const tradeIdentifier = z.union([integerIdentifier, z.literal('')]).optional();
 
+const MAX_DECIMAL_EXPONENT = 64;
+
 function decimalParts(value: string): { units: bigint; scale: number } {
   const negative = value.startsWith('-');
   const unsigned = negative ? value.slice(1) : value;
-  const [integer = '0', fraction = ''] = unsigned.split('.');
-  const units = BigInt(`${integer}${fraction}`);
-  return { units: negative ? -units : units, scale: fraction.length };
+  const [mantissa = '0', exponentRaw] = unsigned.split(/[eE]/);
+  const exponent = exponentRaw === undefined ? 0 : Number.parseInt(exponentRaw, 10);
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > MAX_DECIMAL_EXPONENT) {
+    throw new Error(`Decimal exponent is out of supported range: ${value}`);
+  }
+  const [integer = '0', fraction = ''] = mantissa.split('.');
+  const rawUnits = BigInt(`${integer}${fraction}`);
+  const netScale = fraction.length - exponent;
+  const units = netScale < 0 ? rawUnits * 10n ** BigInt(-netScale) : rawUnits;
+  const scale = Math.max(0, netScale);
+  return { units: negative ? -units : units, scale };
 }
 
 function formatDecimal(units: bigint, scale: number): string {

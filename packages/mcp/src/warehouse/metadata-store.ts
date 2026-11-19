@@ -92,6 +92,7 @@ export class WarehouseMetadataStore {
     this.database.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA synchronous = NORMAL;
+      PRAGMA busy_timeout = 5000;
       PRAGMA foreign_keys = ON;
 
       CREATE TABLE IF NOT EXISTS import_jobs (
@@ -406,6 +407,7 @@ export class WarehouseMetadataStore {
       interval?: string;
     },
     window: TapeFileWindow = {},
+    isFilePresent?: (path: string) => boolean,
   ): Record<string, unknown> {
     const where: string[] = ['dataset = ?'];
     const values: string[] = [selection.dataset];
@@ -431,20 +433,27 @@ export class WarehouseMetadataStore {
     }
     const rows = this.database
       .prepare(
-        `SELECT substr(min_event_time, 1, 10) AS min_day,
-                substr(max_event_time, 1, 10) AS max_day,
-                COUNT(*) AS file_count
+        `SELECT path,
+                substr(min_event_time, 1, 10) AS min_day,
+                substr(max_event_time, 1, 10) AS max_day
          FROM parquet_files WHERE ${where.join(' AND ')}
            AND min_event_time IS NOT NULL AND max_event_time IS NOT NULL
-         GROUP BY 1, 2 ORDER BY 1`,
+         ORDER BY min_day`,
       )
-      .all(...values) as Array<{ min_day: string; max_day: string; file_count: number }>;
+      .all(...values) as Array<{ path: string; min_day: string; max_day: string }>;
 
     const covered = new Set<string>();
-    for (const row of rows) forEachDay(row.min_day, row.max_day, (day) => covered.add(day));
-    const coveredDays = [...covered].sort();
-    const firstDay = coveredDays[0] ?? null;
-    const lastDay = coveredDays.at(-1) ?? null;
+    for (const row of rows) {
+      if (isFilePresent !== undefined && !isFilePresent(row.path)) continue;
+      forEachDay(row.min_day, row.max_day, (day) => covered.add(day));
+    }
+    const allCoveredDays = [...covered].sort();
+    const coveredDayCount = allCoveredDays.length;
+    const coveredDays =
+      coveredDayCount > MAX_LISTED_DAYS ? allCoveredDays.slice(0, MAX_LISTED_DAYS) : allCoveredDays;
+    const coveredDaysTruncated = coveredDays.length < coveredDayCount;
+    const firstDay = allCoveredDays[0] ?? null;
+    const lastDay = allCoveredDays.at(-1) ?? null;
     // With no window the expected range is the selection's own span, which is exactly the
     // case that matters: a gap between the first and last imported day is otherwise
     // invisible behind a min/max pair.
@@ -463,7 +472,7 @@ export class WarehouseMetadataStore {
     });
     const truncated = missingDays.length < missingDayCount;
     return {
-      coveredDayCount: coveredDays.length,
+      coveredDayCount,
       firstDay,
       lastDay,
       expectedDayCount,
@@ -471,6 +480,7 @@ export class WarehouseMetadataStore {
       missingDayCount,
       truncated,
       coveredDays,
+      coveredDaysTruncated,
     };
   }
 
