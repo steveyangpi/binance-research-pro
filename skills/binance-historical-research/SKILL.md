@@ -10,17 +10,20 @@ The warehouse is separate from the short-lived public API cache. It stores durab
 ## Read-first workflow
 
 1. Call `warehouse_status` when configuration matters.
-2. Call `warehouse_coverage` before any multi-day analysis. A dataset's earliest and latest
+2. Call `warehouse_coverage` before any multi-day analysis on candles, tape (`trades`,
+   `aggtrades`), or USD-M series (`metrics`, `bookdepth`). A dataset's earliest and latest
    time look continuous even when whole days in the middle were never imported, so
    `warehouse_list_datasets` and `warehouse_data_range` cannot tell you a day is missing.
 3. Treat a gap as a finding, not a nuisance. Report which days are absent and never compute a
    seven-day average over six days of data without saying so.
 4. Use `warehouse_query_candles` with the narrowest symbol, interval, time range, and limit needed.
 5. Use `warehouse_query_trades` with a market and either a narrow window or `bucketSeconds`.
-   Its `startTime` and `endTime` filter rows; the same bounds on `warehouse_data_range` only
-   select which files are read, so a narrow range against a daily archive still returns a
-   whole day of bounds.
+   Its `startTime` and `endTime` filter rows; the same bounds on `warehouse_data_range` (for
+   tape and USD-M series) only select which files are read, so a narrow range against a daily
+   archive still returns a whole day of bounds.
 6. Use `warehouse_query_series` for the USD-M `metrics` and `bookdepth` snapshot datasets.
+   `warehouse_coverage` and `warehouse_data_range` also support `metrics` and `bookdepth`
+   (`market` defaults to `um` and `interval` is rejected).
 7. State dataset, source, market, symbol, interval, earliest/latest time, and row count when available.
 
 ## Imports
@@ -34,7 +37,7 @@ The warehouse is separate from the short-lived public API cache. It stores durab
 ## Data semantics
 
 - `binance-kline` is the normalized 12-column Binance K-line profile. `binance-trades` and `binance-agg-trades` are the tick-level profiles, with datasets `trades` and `aggtrades`.
-- `binance-metrics` and `binance-book-depth` are USD-M snapshot series, with datasets `metrics` and `bookdepth`; Binance publishes no spot counterpart. Query them with `warehouse_query_series`. Book depth is cumulative depth inside percentage bands, not a per-level order book.
+- `binance-metrics` and `binance-book-depth` are USD-M snapshot series, with datasets `metrics` and `bookdepth`; Binance publishes no spot counterpart. Query them with `warehouse_query_series`, and check their date coverage or bounds with `warehouse_coverage` and `warehouse_data_range` (`market` defaults to `um`; do not pass `interval`). Book depth is cumulative depth inside percentage bands, not a per-level order book.
 - Tape imports require a market and reject `interval` and `hasHeader`; the header row is derived from the market. Do not pass an interval for tape data.
 - Spot archive timestamps from 2025 onward may use microseconds; the backend normalizes supported Binance archive formats.
 - Kline results are deduplicated by open time and returned newest first. Tape results are deduplicated by market plus trade ID, because Spot and USD-M number trades independently.

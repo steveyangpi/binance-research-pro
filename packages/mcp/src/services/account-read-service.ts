@@ -23,7 +23,7 @@ function decimalParts(value: string): { units: bigint; scale: number } {
   const [mantissa = '0', exponentRaw] = unsigned.split(/[eE]/);
   const exponent = exponentRaw === undefined ? 0 : Number.parseInt(exponentRaw, 10);
   if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > MAX_DECIMAL_EXPONENT) {
-    throw new Error(`Decimal exponent is out of supported range: ${value}`);
+    throw new Error('Decimal exponent is out of supported range.');
   }
   const [integer = '0', fraction = ''] = mantissa.split('.');
   const rawUnits = BigInt(`${integer}${fraction}`);

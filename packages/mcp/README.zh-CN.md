@@ -33,16 +33,16 @@
 
 ### 本地数据仓库工具
 
-| MCP 工具                  | 说明                                   |
-| ------------------------- | -------------------------------------- |
-| `warehouse_import_file`   | 从白名单目录导入 CSV、ZIP 或 Parquet   |
-| `warehouse_import_url`    | 下载并导入 HTTPS 文件，可校验 SHA-256  |
-| `warehouse_status`        | 查看存储路径、限额与导入统计           |
-| `warehouse_list_datasets` | 查看已导入数据集、标的、周期与时间范围 |
-| `warehouse_list_files`    | 查看 Parquet 文件及其导入元数据        |
-| `warehouse_query_candles` | 查询并按开盘时间去重的历史 K 线        |
-| `warehouse_data_range`    | 查询 K 线行数及最早/最晚时间           |
-| `warehouse_coverage`      | 列出某数据集已导入与缺失的 UTC 日期    |
+| MCP 工具                  | 说明                                                  |
+| ------------------------- | ----------------------------------------------------- |
+| `warehouse_import_file`   | 从白名单目录导入 CSV、ZIP 或 Parquet                  |
+| `warehouse_import_url`    | 下载并导入 HTTPS 文件，可校验 SHA-256                 |
+| `warehouse_status`        | 查看存储路径、限额与导入统计                          |
+| `warehouse_list_datasets` | 查看已导入数据集、标的、周期与时间范围                |
+| `warehouse_list_files`    | 查看 Parquet 文件及其导入元数据                       |
+| `warehouse_query_candles` | 查询并按开盘时间去重的历史 K 线                       |
+| `warehouse_data_range`    | 查询 K 线、逐笔成交或 USD-M 序列的行数及最早/最晚时间 |
+| `warehouse_coverage`      | 列出某数据集已导入与缺失的 UTC 日期                   |
 
 ### 可选只读账户工具
 

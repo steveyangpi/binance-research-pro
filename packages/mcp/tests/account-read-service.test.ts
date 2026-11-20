@@ -173,4 +173,16 @@ describe('AccountReadService', () => {
       ],
     });
   });
+
+  it('rejects out-of-range decimal exponents without echoing private values', async () => {
+    const fixture = serviceFor({
+      accountType: 'SPOT',
+      updateTime: 1_750_000_000_000,
+      balances: [{ asset: 'SHIB', free: '1e65', locked: '0' }],
+    });
+
+    await expect(fixture.service.spotAccountOverview('readonly')).rejects.toThrow(
+      /^Decimal exponent is out of supported range\.$/,
+    );
+  });
 });

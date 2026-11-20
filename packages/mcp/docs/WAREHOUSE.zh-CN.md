@@ -103,7 +103,7 @@ trade_count,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore
 
 必须提供 `market=um` 和 `symbol`。**`bookdepth` 不是逐档盘口**——它回答的是"±X% 范围内累计有多少深度"，不是"买一挂了多少"；逐档最优挂单档案已于 2024 年初停更。
 
-用 `warehouse_query_series` 查询：
+用 `warehouse_query_series` 查询，并可用 `warehouse_coverage` 与 `warehouse_data_range` 检查覆盖日期或时间边界（`market` 缺省为 `um`，不接受 `interval`）：
 
 ```text
 调用 warehouse_query_series，dataset=metrics，symbol=BTCUSDT，
@@ -174,11 +174,11 @@ bucketSeconds=60，limit=120。
 
 逐笔导入不要传 `interval`。不要导入当天或前一天的 UTC 日文件：Binance 可能重发这些文件，而重发的档案是合并而不是替换。
 
-`warehouse_data_range` 对逐笔数据集接受 `startTime` 与 `endTime`，它也是本工具中唯一**开销随仓库历史增长、而非随查询增长**的查询：不给时间范围就会读该 symbol 生成过的每一个文件。除非确实需要完整跨度，请传时间范围。K 线分支保持原有契约，会拒绝这两个时间参数。
+`warehouse_data_range` 对逐笔与 USD-M 序列数据集接受 `startTime` 与 `endTime`，它也是本工具中唯一**开销随仓库历史增长、而非随查询增长**的查询：不给时间范围就会读该 symbol 生成过的每一个文件。除非确实需要完整跨度，请传时间范围。K 线分支保持原有契约，会拒绝这两个时间参数。
 
-**时间范围只用于挑选文件，不用于过滤行。** Binance 的逐笔档案按天发布，因此针对日级文件查询一个小时的窗口，仍然会读取并返回**整天**的数据。返回的 `minEventTime` 与 `maxEventTime` 是**文件**的边界，而不是你请求的窗口边界：请求 1 小时通常会得到 24 小时的时间跨度。请把时间范围当作成本控制手段，精确的时间边界交给 `warehouse_query_trades`；范围查询回答的是"哪些天存在"，而不是"01:00 到 02:00 之间发生了什么"。
+**时间范围只用于挑选文件，不用于过滤行。** Binance 的逐笔与序列档案按天发布，因此针对日级文件查询一个小时的窗口，仍然会读取并返回**整天**的数据。返回的 `minEventTime` 与 `maxEventTime` 是**文件**的边界，而不是你请求的窗口边界：请求 1 小时通常会得到 24 小时的时间跨度。请把时间范围当作成本控制手段，精确的时间边界交给 `warehouse_query_trades` 或 `warehouse_query_series`；范围查询回答的是"哪些天存在"，而不是"01:00 到 02:00 之间发生了什么"。
 
-范围查询只返回最早与最晚时间，**无法判断中间的日期是否齐全**——缺一天的窗口看起来仍是连续的。请改用 `warehouse_coverage`：它基于文件边界统计**不同的 UTC 天数**、返回缺失的日期，且不读取任何 parquet 数据，因此开销足够低，可以在每次多日分析前先跑一次。该工具对逐笔数据集要求传 `market`，因为现货与 U 本位是两组独立文件，不能合并统计。
+范围查询只返回最早与最晚时间，**无法判断中间的日期是否齐全**——缺一天的窗口看起来仍是连续的。请改用 `warehouse_coverage`：它基于文件边界统计**不同的 UTC 天数**、返回缺失的日期，且不读取任何 parquet 数据，因此开销足够低，可以在每次多日分析前先跑一次。该工具对逐笔数据集要求传 `market`，因为现货与 U 本位是两组独立文件，不能合并统计；对 USD-M 序列数据集（`metrics`、`bookdepth`）则将 `market` 缺省为 `um` 并拒绝 `interval`。
 
 ## 安全与运维
 

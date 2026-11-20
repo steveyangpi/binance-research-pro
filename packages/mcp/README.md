@@ -33,16 +33,16 @@ A Binance Spot and USD-M Futures research MCP server. Public analysis requires n
 
 ### Local data warehouse tools
 
-| MCP tool                  | Description                                               |
-| ------------------------- | --------------------------------------------------------- |
-| `warehouse_import_file`   | Import CSV, ZIP, or Parquet from an allowlisted directory |
-| `warehouse_import_url`    | Download an HTTPS file, optionally verify SHA-256, import |
-| `warehouse_status`        | Show configured paths, limits, and import totals          |
-| `warehouse_list_datasets` | List datasets, symbols, intervals, and time ranges        |
-| `warehouse_list_files`    | List managed Parquet files and import metadata            |
-| `warehouse_query_candles` | Query deduplicated historical Klines                      |
-| `warehouse_data_range`    | Get Kline row count and earliest/latest open time         |
-| `warehouse_coverage`      | List imported and missing UTC days for a dataset          |
+| MCP tool                  | Description                                                              |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `warehouse_import_file`   | Import CSV, ZIP, or Parquet from an allowlisted directory                |
+| `warehouse_import_url`    | Download an HTTPS file, optionally verify SHA-256, import                |
+| `warehouse_status`        | Show configured paths, limits, and import totals                         |
+| `warehouse_list_datasets` | List datasets, symbols, intervals, and time ranges                       |
+| `warehouse_list_files`    | List managed Parquet files and import metadata                           |
+| `warehouse_query_candles` | Query deduplicated historical Klines                                     |
+| `warehouse_data_range`    | Get row count and earliest/latest time for Klines, tape, or USD-M series |
+| `warehouse_coverage`      | List imported and missing UTC days for a dataset                         |
 
 ### Optional read-only account tools
 

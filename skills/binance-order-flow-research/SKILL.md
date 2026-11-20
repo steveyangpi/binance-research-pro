@@ -52,9 +52,10 @@ in the toolchain will flag the discrepancy. Do this first, every time:
 
 1. **Work out how many days the window should contain.** A 7-day request needs 7 distinct
    days. Without that number there is nothing to compare the file count against.
-2. **List the files and count the distinct days** for the dataset, market and symbol under
-   study. Compare against step 1. Count days, not files: a symbol covered in two markets or
-   in two datasets has more files than days.
+2. **Check coverage and count the distinct days** for the dataset, market and symbol under
+   study with `warehouse_coverage` (supports both tape `aggtrades`/`trades` and USD-M series
+   `metrics`/`bookdepth`), or from the file listing. Compare against step 1. Count days, not
+   files: a symbol covered in two markets or in two datasets has more files than days.
 3. **If days are missing, import them before analysing.** The tape and series datasets are
    available one day per archive from `data.binance.vision`, and re-importing is idempotent,
    so filling a gap is a few calls and safe. Run the analysis only after the count matches.
@@ -263,7 +264,9 @@ State plainly that the data cannot identify the parties.
   It also rejects the notional floor, which would distort the level distribution.
 - A filter that has no meaning in the requested mode is rejected, never ignored. Treat any
   such error as a correction, not as a no-op to work around.
-- The series tool takes no market argument; both series datasets exist for USD-M only.
+- `warehouse_query_series` takes no market argument; both series datasets exist for USD-M only.
+  On `warehouse_coverage` and `warehouse_data_range`, `metrics` and `bookdepth` default `market`
+  to `um` and reject `interval`.
 
 ## Defaults and tuning
 
